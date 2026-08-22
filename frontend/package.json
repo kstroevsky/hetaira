@@ -1,0 +1,39 @@
+{
+  "name": "prometheus-workbench",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.6.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "test": "vitest",
+    "generate:api": "openapi-typescript http://localhost:8000/openapi.json -o src/api/schema.d.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.83.0",
+    "lucide-react": "0.525.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.30.0",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.0",
+    "@types/node": "24.0.10",
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "@vitejs/plugin-react": "4.6.0",
+    "eslint": "9.30.1",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "eslint-plugin-react-refresh": "0.4.20",
+    "globals": "16.3.0",
+    "jsdom": "26.1.0",
+    "openapi-typescript": "7.8.0",
+    "typescript": "5.8.3",
+    "typescript-eslint": "8.35.1",
+    "vite": "7.2.4",
+    "vitest": "3.2.4"
+  }
+}
