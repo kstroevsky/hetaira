@@ -11,6 +11,7 @@ backend/.coverage
 frontend/node_modules/
 frontend/dist/
 frontend/coverage/
+*.tsbuildinfo
 playwright-report/
 test-results/
 .codegraph/
