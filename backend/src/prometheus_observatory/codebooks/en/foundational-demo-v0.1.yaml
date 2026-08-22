@@ -1,0 +1,17 @@
+codebook_key: foundational-conversation-en-demo
+version: 0.1.0-demo
+language: en
+validated: false
+status: unvalidated_demo
+warning: UNVALIDATED ENGLISH DEMO — excluded from scientific claims and model promotion.
+labels:
+  dialogue_act:
+    QUESTION: {definition: "Requests information or clarification."}
+    PROPOSE: {definition: "Proposes an action, option, or decision."}
+    AGREE: {definition: "Explicitly supports a target."}
+    DISAGREE: {definition: "Explicitly opposes a target."}
+    ASSERT: {definition: "Provides information or makes a claim."}
+  stance:
+    SUPPORT: {definition: "Supports an explicit target."}
+    OPPOSE: {definition: "Opposes an explicit target."}
+required_evidence: [exact_span]
