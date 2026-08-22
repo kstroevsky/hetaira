@@ -1,6 +1,6 @@
-# Prometheus Observatory
+# Hetaira Observatory
 
-Prometheus is a local-first, Russian-first computational conversation observatory. It preserves imported Telegram and WhatsApp data as immutable source evidence, derives versioned observations and measurements, and keeps every interpretation navigable back to exact message spans.
+Hetaira is a local-first, Russian-first computational conversation observatory. It preserves imported Telegram and WhatsApp data as immutable source evidence, derives versioned observations and measurements, and keeps every interpretation navigable back to exact message spans.
 
 The current Foundation release implements the first complete vertical slice:
 
@@ -33,7 +33,7 @@ The default zero-configuration database is SQLite. PostgreSQL 18 + pgvector is t
 ```bash
 docker compose up -d postgres
 cp .env.example .env
-# enable the PostgreSQL PROMETHEUS_DATABASE_URL in .env
+# enable the PostgreSQL Hetaira_DATABASE_URL in .env
 .venv/bin/alembic -c backend/alembic.ini upgrade head
 ```
 
@@ -53,11 +53,11 @@ Generate a scale fixture without keeping the full message list in memory:
 
 ## Source map
 
-- `backend/src/prometheus_observatory/models.py` — persistence ontology and immutability enforcement.
-- `backend/src/prometheus_observatory/ontology.py` — public evidence, provenance, measurement, and finding contracts.
-- `backend/src/prometheus_observatory/importers/` — Telegram and WhatsApp adapters.
-- `backend/src/prometheus_observatory/analyzer.py` — deterministic Russian foundation pipeline.
-- `backend/src/prometheus_observatory/retrieval.py` — traceable retrieval seam.
+- `backend/src/Hetaira_observatory/models.py` — persistence ontology and immutability enforcement.
+- `backend/src/Hetaira_observatory/ontology.py` — public evidence, provenance, measurement, and finding contracts.
+- `backend/src/Hetaira_observatory/importers/` — Telegram and WhatsApp adapters.
+- `backend/src/Hetaira_observatory/analyzer.py` — deterministic Russian foundation pipeline.
+- `backend/src/Hetaira_observatory/retrieval.py` — traceable retrieval seam.
 - `frontend/src/` — live analysis workbench.
 - `docs/` — scientific specification, annotation manual, architecture, and validation rules.
 
