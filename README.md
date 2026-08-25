@@ -4,13 +4,13 @@ Hetaira is a local-first, Russian-first computational conversation observatory. 
 
 The current Foundation release implements the first complete vertical slice:
 
-- streaming Telegram JSON and WhatsApp TXT imports with content-addressed artifacts;
+- streaming Telegram JSON and WhatsApp TXT imports with cumulative immutable snapshots;
 - immutable messages and revisions, Unicode span hashes, sessions, episodes, participants, replies, and attachments;
 - Russian codebook-backed deterministic dialogue acts, propositions, stance, epistemics, grounding, and argument cues;
-- participation and reply-reciprocity measurements with explicit denominators;
+- plugin-validated participation and explicit-reply reciprocity measurements;
 - L0 source → L1 observation → L2 measurement → L3 interpretation evidence chains;
 - traceable Russian lexical retrieval and a bounded research-plan contract;
-- provider-neutral local/generic HTTP model interfaces with runtime privacy enforcement;
+- provider-neutral local/API model routing with corpus-derived egress policy, budgets, JSON Schema validation, and audits;
 - a full React analysis microscope and an explicitly unvalidated 100-message English demo.
 
 High-level influence, power, persuasion, coalition, forecasting, and pivotal-moment systems remain gated behind validated primitive measurements. The ontology already reserves their evidence/provenance contracts; the application does not invent direct scores for them.
@@ -33,8 +33,8 @@ The default zero-configuration database is SQLite. PostgreSQL 18 + pgvector is t
 ```bash
 docker compose up -d postgres
 cp .env.example .env
-# enable the PostgreSQL Hetaira_DATABASE_URL in .env
-.venv/bin/alembic -c backend/alembic.ini upgrade head
+# enable the PostgreSQL PROMETHEUS_DATABASE_URL compatibility setting in .env
+.venv/bin/python -m alembic -c backend/alembic.ini upgrade head
 ```
 
 ## Verification
@@ -53,11 +53,11 @@ Generate a scale fixture without keeping the full message list in memory:
 
 ## Source map
 
-- `backend/src/Hetaira_observatory/models.py` — persistence ontology and immutability enforcement.
-- `backend/src/Hetaira_observatory/ontology.py` — public evidence, provenance, measurement, and finding contracts.
-- `backend/src/Hetaira_observatory/importers/` — Telegram and WhatsApp adapters.
-- `backend/src/Hetaira_observatory/analyzer.py` — deterministic Russian foundation pipeline.
-- `backend/src/Hetaira_observatory/retrieval.py` — traceable retrieval seam.
+- `backend/src/prometheus_observatory/models.py` — persistence ontology and immutability enforcement.
+- `backend/src/prometheus_observatory/ontology.py` — public evidence, provenance, measurement, and finding contracts.
+- `backend/src/prometheus_observatory/importers/` — Telegram and WhatsApp adapters.
+- `backend/src/prometheus_observatory/analyzer.py` — deterministic Russian foundation pipeline.
+- `backend/src/prometheus_observatory/retrieval.py` — snapshot-scoped traceable retrieval.
 - `frontend/src/` — live analysis workbench.
 - `docs/` — scientific specification, annotation manual, architecture, and validation rules.
 
