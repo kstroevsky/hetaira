@@ -95,6 +95,7 @@ def search_corpus(
     q: str,
     limit: int = 20,
     participant_id: str | None = None,
+    snapshot_id: str | None = None,
     session: Session = Depends(get_session),
 ) -> dict:
     if session.get(Corpus, corpus_id) is None:
@@ -105,6 +106,7 @@ def search_corpus(
             q,
             limit=min(max(limit, 1), 100),
             participant_id=participant_id,
+            snapshot_id=snapshot_id,
         )
     except ValueError as error:
         raise HTTPException(422, str(error)) from error

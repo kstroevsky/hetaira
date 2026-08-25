@@ -25,7 +25,7 @@ def test_retrieval_returns_traceable_exact_evidence(db_session: Session, tmp_pat
         corpus, stored, FIXTURE.name, "application/json", "telegram"
     )
     trace, hits = HybridRetriever(db_session).search(corpus.id, "проверим данные")
-    assert trace.strategy == "lexical-v1"
+    assert trace.strategy == "sqlite-bounded-lexical-v1"
     assert trace.result_refs[0]["revision_id"]
     assert hits[0].exact_match
 

@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     event,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -49,6 +50,10 @@ class CorpusSnapshot(Base, Timestamped):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     corpus_id: Mapped[str] = mapped_column(ForeignKey("corpora.id", ondelete="CASCADE"), index=True)
     source_hash: Mapped[str] = mapped_column(String(64), index=True)
+    parent_snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("corpus_snapshots.id"), index=True
+    )
+    manifest_hash: Mapped[str] = mapped_column(String(64), index=True)
     message_count: Mapped[int] = mapped_column(Integer, default=0)
     label: Mapped[str] = mapped_column(String(240), default="initial")
 
@@ -66,6 +71,22 @@ class SourceArtifact(Base, Timestamped):
     object_path: Mapped[str] = mapped_column(Text)
 
 
+class ImportRun(Base, Timestamped):
+    __tablename__ = "import_runs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    corpus_id: Mapped[str] = mapped_column(ForeignKey("corpora.id"), index=True)
+    source_hash: Mapped[str] = mapped_column(String(64), index=True)
+    platform: Mapped[str] = mapped_column(String(32))
+    source_namespace: Mapped[str] = mapped_column(String(240))
+    status: Mapped[str] = mapped_column(String(24), default="running", index=True)
+    imported_messages: Mapped[int] = mapped_column(Integer, default=0)
+    reused_messages: Mapped[int] = mapped_column(Integer, default=0)
+    appended_revisions: Mapped[int] = mapped_column(Integer, default=0)
+    warnings: Mapped[list[str]] = mapped_column(JSON, default=list)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+
+
 class Participant(Base, Timestamped):
     __tablename__ = "participants"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -80,11 +101,20 @@ class ParticipantIdentity(Base, Timestamped):
     participant_id: Mapped[str] = mapped_column(
         ForeignKey("participants.id", ondelete="CASCADE"), index=True
     )
+    corpus_id: Mapped[str] = mapped_column(ForeignKey("corpora.id", ondelete="CASCADE"), index=True)
     platform: Mapped[str] = mapped_column(String(32))
+    source_namespace: Mapped[str] = mapped_column(String(240))
     external_id: Mapped[str] = mapped_column(String(240))
     display_name: Mapped[str] = mapped_column(String(240))
     __table_args__ = (
-        Index("uq_identity_platform_external", "platform", "external_id", unique=True),
+        Index(
+            "uq_identity_corpus_namespace_external",
+            "corpus_id",
+            "platform",
+            "source_namespace",
+            "external_id",
+            unique=True,
+        ),
     )
 
 
@@ -93,9 +123,20 @@ class Conversation(Base, Timestamped):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     corpus_id: Mapped[str] = mapped_column(ForeignKey("corpora.id", ondelete="CASCADE"), index=True)
     platform: Mapped[str] = mapped_column(String(32))
+    source_namespace: Mapped[str] = mapped_column(String(240))
     external_id: Mapped[str] = mapped_column(String(240))
     title: Mapped[str] = mapped_column(String(500))
     goal: Mapped[str] = mapped_column(String(64), default="informal_social")
+    __table_args__ = (
+        Index(
+            "uq_conversation_source_identity",
+            "corpus_id",
+            "platform",
+            "source_namespace",
+            "external_id",
+            unique=True,
+        ),
+    )
 
 
 class Message(Base, Timestamped):
@@ -107,6 +148,10 @@ class Message(Base, Timestamped):
     external_id: Mapped[str] = mapped_column(String(240))
     sender_id: Mapped[str | None] = mapped_column(ForeignKey("participants.id"), index=True)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    source_local_timestamp: Mapped[str] = mapped_column(String(80))
+    source_timezone_assumption: Mapped[str | None] = mapped_column(String(120))
+    resolved_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    resolution_confidence: Mapped[float] = mapped_column(Float, default=1.0)
     reply_to_external_id: Mapped[str | None] = mapped_column(String(240), index=True)
     message_type: Mapped[str] = mapped_column(String(40), default="message")
     source_tombstone: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -129,6 +174,24 @@ class MessageRevision(Base, Timestamped):
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revision_kind: Mapped[str] = mapped_column(String(24), default="original")
     __table_args__ = (Index("uq_message_revision", "message_id", "revision_number", unique=True),)
+
+
+class SnapshotMessageRevision(Base, Timestamped):
+    __tablename__ = "snapshot_message_revisions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("corpus_snapshots.id", ondelete="CASCADE"), index=True
+    )
+    message_id: Mapped[str] = mapped_column(
+        ForeignKey("messages.id", ondelete="CASCADE"), index=True
+    )
+    revision_id: Mapped[str] = mapped_column(
+        ForeignKey("message_revisions.id", ondelete="CASCADE"), index=True
+    )
+    __table_args__ = (
+        UniqueConstraint("snapshot_id", "message_id", name="uq_snapshot_message"),
+        UniqueConstraint("snapshot_id", "revision_id", name="uq_snapshot_revision"),
+    )
 
 
 class AttachmentRef(Base, Timestamped):
@@ -226,6 +289,27 @@ class CodebookVersion(Base, Timestamped):
     __table_args__ = (Index("uq_codebook_version", "codebook_key", "version", unique=True),)
 
 
+class CodebookArtifact(Base, Timestamped):
+    __tablename__ = "codebook_artifacts"
+    content_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    content: Mapped[str] = mapped_column(Text)
+
+
+class CodebookRelease(Base, Timestamped):
+    __tablename__ = "codebook_releases"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    codebook_key: Mapped[str] = mapped_column(String(120), index=True)
+    semantic_version: Mapped[str] = mapped_column(String(40))
+    language: Mapped[str] = mapped_column(String(16))
+    artifact_hash: Mapped[str] = mapped_column(
+        ForeignKey("codebook_artifacts.content_hash"), index=True
+    )
+    validated: Mapped[bool] = mapped_column(Boolean, default=False)
+    __table_args__ = (
+        UniqueConstraint("codebook_key", "semantic_version", name="uq_codebook_release"),
+    )
+
+
 class AnalysisRun(Base, Timestamped):
     __tablename__ = "analysis_runs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -279,6 +363,16 @@ class Annotation(Base, Timestamped):
     calibrated_confidence: Mapped[float | None] = mapped_column(Float)
     alternatives: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     provenance: Mapped[dict[str, Any]] = mapped_column(JSON)
+    superseded_by: Mapped[str | None] = mapped_column(ForeignKey("annotations.id"), index=True)
+
+
+class AnnotationReview(Base, Timestamped):
+    __tablename__ = "annotation_reviews"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    annotation_id: Mapped[str] = mapped_column(ForeignKey("annotations.id"), index=True)
+    decision: Mapped[str] = mapped_column(String(24))
+    reviewer: Mapped[str] = mapped_column(String(240))
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
 class PropositionMention(Base, Timestamped):
@@ -316,6 +410,23 @@ class StanceObservation(Base, Timestamped):
     position: Mapped[str] = mapped_column(String(24))
     strength: Mapped[float] = mapped_column(Float)
     certainty: Mapped[float] = mapped_column(Float)
+    target_weight: Mapped[float] = mapped_column(Float, default=1.0)
+    resolution_status: Mapped[str] = mapped_column(String(24), default="RESOLVED")
+
+
+class EpistemicObservation(Base, Timestamped):
+    __tablename__ = "epistemic_observations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    annotation_id: Mapped[str] = mapped_column(ForeignKey("annotations.id"), unique=True)
+    holder_id: Mapped[str] = mapped_column(ForeignKey("participants.id"), index=True)
+    proposition_id: Mapped[str] = mapped_column(ForeignKey("proposition_mentions.id"), index=True)
+    polarity: Mapped[str] = mapped_column(String(24))
+    commitment: Mapped[float] = mapped_column(Float)
+    certainty: Mapped[float] = mapped_column(Float)
+    evidential_basis: Mapped[str] = mapped_column(String(80))
+    attributed_source_id: Mapped[str | None] = mapped_column(
+        ForeignKey("participants.id"), index=True
+    )
 
 
 class ResponseRelation(Base, Timestamped):
@@ -350,6 +461,7 @@ class RetrievalTrace(Base, Timestamped):
     __tablename__ = "retrieval_traces"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     corpus_id: Mapped[str] = mapped_column(ForeignKey("corpora.id"), index=True)
+    snapshot_id: Mapped[str] = mapped_column(ForeignKey("corpus_snapshots.id"), index=True)
     query: Mapped[str] = mapped_column(Text)
     strategy: Mapped[str] = mapped_column(String(80))
     language: Mapped[str] = mapped_column(String(16), default="ru")
@@ -379,6 +491,10 @@ class MeasurementResult(Base, Timestamped):
     subject_type: Mapped[str] = mapped_column(String(40), index=True)
     subject_id: Mapped[str] = mapped_column(String(36), index=True)
     result: Mapped[dict[str, Any]] = mapped_column(JSON)
+    provenance: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    superseded_by: Mapped[str | None] = mapped_column(
+        ForeignKey("measurement_results.id"), index=True
+    )
 
 
 class Hypothesis(Base, Timestamped):
@@ -405,6 +521,29 @@ class Finding(Base, Timestamped):
     sensitivity_results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     dependency_dag_root: Mapped[str] = mapped_column(String(240))
     provenance: Mapped[dict[str, Any]] = mapped_column(JSON)
+    superseded_by: Mapped[str | None] = mapped_column(ForeignKey("findings.id"), index=True)
+
+
+class DerivationEdge(Base, Timestamped):
+    __tablename__ = "derivation_edges"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    source_type: Mapped[str] = mapped_column(String(40), index=True)
+    source_id: Mapped[str] = mapped_column(String(36), index=True)
+    target_type: Mapped[str] = mapped_column(String(40), index=True)
+    target_id: Mapped[str] = mapped_column(String(36), index=True)
+    relation: Mapped[str] = mapped_column(String(40), index=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("analysis_runs.id"), index=True)
+    __table_args__ = (
+        UniqueConstraint(
+            "source_type",
+            "source_id",
+            "target_type",
+            "target_id",
+            "relation",
+            "run_id",
+            name="uq_derivation_edge",
+        ),
+    )
 
 
 IMMUTABLE_MODELS = (SourceArtifact, Message, MessageRevision)

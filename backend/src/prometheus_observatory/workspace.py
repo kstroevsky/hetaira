@@ -11,11 +11,13 @@ from .models import (
     Annotation,
     Corpus,
     CorpusSnapshot,
+    DerivationEdge,
     Finding,
     MeasurementResult,
     Message,
     MessageRevision,
     Participant,
+    SnapshotMessageRevision,
     Span,
     Utterance,
 )
@@ -45,19 +47,25 @@ class WorkspaceService:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def messages(self, corpus_id: str) -> list[MessageListItem]:
+    def messages(self, corpus_id: str, snapshot_id: str | None = None) -> list[MessageListItem]:
+        snapshot = self._snapshot(corpus_id, snapshot_id)
         rows = self.session.execute(
             select(Message, MessageRevision, Participant)
-            .join(MessageRevision, MessageRevision.message_id == Message.id)
+            .join(SnapshotMessageRevision, SnapshotMessageRevision.message_id == Message.id)
+            .join(MessageRevision, MessageRevision.id == SnapshotMessageRevision.revision_id)
             .outerjoin(Participant, Participant.id == Message.sender_id)
-            .where(Message.conversation_id.in_(self._conversation_ids(corpus_id)))
+            .where(SnapshotMessageRevision.snapshot_id == snapshot.id)
             .order_by(Message.sent_at)
         ).all()
         reply_counts = Counter(
             reply_to
             for reply_to in self.session.scalars(
                 select(Message.reply_to_external_id).where(
-                    Message.conversation_id.in_(self._conversation_ids(corpus_id)),
+                    Message.id.in_(
+                        select(SnapshotMessageRevision.message_id).where(
+                            SnapshotMessageRevision.snapshot_id == snapshot.id
+                        )
+                    ),
                     Message.reply_to_external_id.is_not(None),
                 )
             )
@@ -77,9 +85,17 @@ class WorkspaceService:
         ]
 
     def microscope(self, message_id: str) -> MicroscopeResponse:
+        membership = self.session.scalar(
+            select(SnapshotMessageRevision)
+            .join(CorpusSnapshot, CorpusSnapshot.id == SnapshotMessageRevision.snapshot_id)
+            .where(SnapshotMessageRevision.message_id == message_id)
+            .order_by(CorpusSnapshot.created_at.desc(), CorpusSnapshot.id.desc())
+        )
+        if membership is None:
+            raise LookupError("message is not present in any snapshot")
         row = self.session.execute(
             select(Message, MessageRevision, Participant)
-            .join(MessageRevision, MessageRevision.message_id == Message.id)
+            .join(MessageRevision, MessageRevision.id == membership.revision_id)
             .outerjoin(Participant, Participant.id == Message.sender_id)
             .where(Message.id == message_id)
         ).one_or_none()
@@ -95,7 +111,11 @@ class WorkspaceService:
         annotations = list(
             self.session.scalars(
                 select(Annotation)
-                .where(Annotation.object_id.in_(span_ids + utterance_ids + [message.id]))
+                .where(
+                    Annotation.snapshot_id == membership.snapshot_id,
+                    Annotation.superseded_by.is_(None),
+                    Annotation.object_id.in_(span_ids + utterance_ids + [message.id]),
+                )
                 .order_by(Annotation.created_at)
             )
         )
@@ -107,27 +127,19 @@ class WorkspaceService:
             MicroscopeSection(key=key, title=title, annotations=grouped[key])
             for key, title in SECTION_TITLES.items()
         ]
-        corpus_id = self._corpus_for_message(message)
-        measurement_rows = list(
-            self.session.scalars(
-                select(MeasurementResult)
-                .where(MeasurementResult.subject_id == corpus_id)
-                .order_by(MeasurementResult.created_at.desc())
-            )
+        connected = self._connected_derivations(
+            membership.snapshot_id, message.id, revision.id, span_ids
         )
-        findings = list(
-            self.session.scalars(
-                select(Finding)
-                .where(
-                    Finding.run_id.in_(
-                        select(AnalysisRun.id).where(
-                            AnalysisRun.snapshot_id.in_(self._snapshot_ids(corpus_id))
-                        )
-                    )
-                )
-                .order_by(Finding.created_at.desc())
-            )
-        )
+        measurement_rows = [
+            item
+            for result_id in connected.get("measurement", set())
+            if (item := self.session.get(MeasurementResult, result_id)) is not None
+        ]
+        findings = [
+            item
+            for finding_id in connected.get("finding", set())
+            if (item := self.session.get(Finding, finding_id)) is not None
+        ]
         evidence_chain = [
             EvidenceStage(
                 level="L0",
@@ -154,32 +166,38 @@ class WorkspaceService:
                     for annotation in annotations
                 ],
             ),
-            EvidenceStage(
-                level="L2",
-                title="Измерение",
-                items=[
-                    {
-                        "definition_id": result.definition_id,
-                        "estimate": result.result.get("estimate"),
-                        "sample_size": result.result.get("sample_size"),
-                    }
-                    for result in measurement_rows[:3]
-                ],
-            ),
-            EvidenceStage(
-                level="L3",
-                title="Интерпретация",
-                items=[
-                    {
-                        "claim": finding.claim,
-                        "causal_status": finding.causal_status,
-                        "warning": (finding.alternative_explanations or [None])[0],
-                    }
-                    for finding in findings[:2]
-                ],
-            ),
         ]
-        supporting, counterexamples = self._comparison_cases(annotations)
+        if measurement_rows:
+            evidence_chain.append(
+                EvidenceStage(
+                    level="L2",
+                    title="Измерение",
+                    items=[
+                        {
+                            "definition_id": result.definition_id,
+                            "estimate": result.result.get("estimate"),
+                            "sample_size": result.result.get("sample_size"),
+                        }
+                        for result in measurement_rows[:3]
+                    ],
+                )
+            )
+        if findings:
+            evidence_chain.append(
+                EvidenceStage(
+                    level="L3",
+                    title="Интерпретация",
+                    items=[
+                        {
+                            "claim": finding.claim,
+                            "causal_status": finding.causal_status,
+                            "warning": (finding.alternative_explanations or [None])[0],
+                        }
+                        for finding in findings[:2]
+                    ],
+                )
+            )
+        supporting, counterexamples = self._comparison_cases(membership.snapshot_id, annotations)
         return MicroscopeResponse(
             message=MessageListItem(
                 id=message.id,
@@ -236,7 +254,7 @@ class WorkspaceService:
         )
 
     def _comparison_cases(
-        self, annotations: list[Annotation]
+        self, snapshot_id: str, annotations: list[Annotation]
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         key_labels = {
             annotation.value.get("label")
@@ -248,7 +266,11 @@ class WorkspaceService:
         all_annotations = list(
             self.session.scalars(
                 select(Annotation)
-                .where(Annotation.kind.in_(["dialogue_act", "epistemic_state"]))
+                .where(
+                    Annotation.snapshot_id == snapshot_id,
+                    Annotation.superseded_by.is_(None),
+                    Annotation.kind.in_(["dialogue_act", "epistemic_state"]),
+                )
                 .order_by(Annotation.raw_confidence.desc())
             )
         )
@@ -270,11 +292,53 @@ class WorkspaceService:
             }
             if label in key_labels and len(supporting) < 3:
                 supporting.append(item)
-            elif label not in key_labels and len(counter) < 3:
+            if any(alternative.get("hard_negative") for alternative in annotation.alternatives):
                 counter.append(item)
             if len(supporting) >= 3 and len(counter) >= 3:
                 break
         return supporting, counter
+
+    def _snapshot(self, corpus_id: str, snapshot_id: str | None) -> CorpusSnapshot:
+        snapshot = (
+            self.session.get(CorpusSnapshot, snapshot_id)
+            if snapshot_id
+            else self.session.scalar(
+                select(CorpusSnapshot)
+                .where(CorpusSnapshot.corpus_id == corpus_id)
+                .order_by(CorpusSnapshot.created_at.desc(), CorpusSnapshot.id.desc())
+            )
+        )
+        if snapshot is None or snapshot.corpus_id != corpus_id:
+            raise LookupError("snapshot not found for corpus")
+        return snapshot
+
+    def _connected_derivations(
+        self, snapshot_id: str, message_id: str, revision_id: str, span_ids: list[str]
+    ) -> dict[str, set[str]]:
+        run_ids = select(AnalysisRun.id).where(AnalysisRun.snapshot_id == snapshot_id)
+        connected: dict[str, set[str]] = {
+            "message": {message_id},
+            "revision": {revision_id},
+            "span": set(span_ids),
+        }
+        frontier = {(kind, item_id) for kind, ids in connected.items() for item_id in ids}
+        while frontier:
+            next_frontier: set[tuple[str, str]] = set()
+            for source_type, source_id in frontier:
+                edges = self.session.scalars(
+                    select(DerivationEdge).where(
+                        DerivationEdge.run_id.in_(run_ids),
+                        DerivationEdge.source_type == source_type,
+                        DerivationEdge.source_id == source_id,
+                    )
+                )
+                for edge in edges:
+                    known = connected.setdefault(edge.target_type, set())
+                    if edge.target_id not in known:
+                        known.add(edge.target_id)
+                        next_frontier.add((edge.target_type, edge.target_id))
+            frontier = next_frontier
+        return connected
 
     def _conversation_ids(self, corpus_id: str):
         from .models import Conversation

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -8,10 +9,15 @@ from sqlalchemy.orm import Session
 
 from prometheus_observatory.importers import ImportService
 from prometheus_observatory.models import (
+    Conversation,
     ConversationSession,
     Corpus,
+    CorpusSnapshot,
+    Message,
     MessageRevision,
+    Participant,
     ResponseRelation,
+    SnapshotMessageRevision,
 )
 from prometheus_observatory.object_store import ContentAddressedStore
 
@@ -71,3 +77,122 @@ def test_source_revision_is_immutable(db_session: Session, tmp_path: Path) -> No
     revision.text = "Переписано"
     with pytest.raises(ValueError, match="immutable"):
         db_session.commit()
+
+
+def test_reimport_is_idempotent_and_snapshots_have_exact_membership(
+    db_session: Session, tmp_path: Path
+) -> None:
+    corpus = make_corpus(db_session)
+    store = ContentAddressedStore(tmp_path / "objects")
+    with (FIXTURES / "telegram.json").open("rb") as source:
+        stored = store.put_stream(source)
+    service = ImportService(db_session)
+    first = service.import_object(corpus, stored, "telegram.json", "application/json", "telegram")
+    second = service.import_object(corpus, stored, "telegram.json", "application/json", "telegram")
+    assert first.snapshot_id != second.snapshot_id
+    assert db_session.scalar(select(func.count()).select_from(Message)) == 2
+    assert db_session.scalar(select(func.count()).select_from(MessageRevision)) == 2
+    snapshots = list(
+        db_session.scalars(select(CorpusSnapshot).where(CorpusSnapshot.corpus_id == corpus.id))
+    )
+    assert len(snapshots) == 2
+    assert snapshots[0].manifest_hash == snapshots[1].manifest_hash
+    for snapshot in snapshots:
+        memberships = list(
+            db_session.scalars(
+                select(SnapshotMessageRevision).where(
+                    SnapshotMessageRevision.snapshot_id == snapshot.id
+                )
+            )
+        )
+        assert len(memberships) == 2
+        assert len({item.message_id for item in memberships}) == 2
+
+
+def test_changed_export_appends_revision_and_preserves_older_snapshot(
+    db_session: Session, tmp_path: Path
+) -> None:
+    corpus = make_corpus(db_session)
+    payload = json.loads((FIXTURES / "telegram.json").read_text(encoding="utf-8"))
+    original_path = tmp_path / "first.json"
+    changed_path = tmp_path / "changed.json"
+    original_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    payload["messages"][0]["text"] = "Предлагаю новый, уточнённый вариант."
+    changed_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    store = ContentAddressedStore(tmp_path / "objects")
+    with original_path.open("rb") as source:
+        first_object = store.put_stream(source)
+    with changed_path.open("rb") as source:
+        changed_object = store.put_stream(source)
+    service = ImportService(db_session)
+    first = service.import_object(
+        corpus, first_object, "telegram.json", "application/json", "telegram"
+    )
+    second = service.import_object(
+        corpus, changed_object, "telegram.json", "application/json", "telegram"
+    )
+    revisions = list(
+        db_session.scalars(
+            select(MessageRevision)
+            .join(Message, Message.id == MessageRevision.message_id)
+            .where(Message.external_id == "1")
+            .order_by(MessageRevision.revision_number)
+        )
+    )
+    assert [revision.revision_number for revision in revisions] == [1, 2]
+    first_membership = db_session.scalar(
+        select(SnapshotMessageRevision).where(
+            SnapshotMessageRevision.snapshot_id == first.snapshot_id,
+            SnapshotMessageRevision.message_id == revisions[0].message_id,
+        )
+    )
+    second_membership = db_session.scalar(
+        select(SnapshotMessageRevision).where(
+            SnapshotMessageRevision.snapshot_id == second.snapshot_id,
+            SnapshotMessageRevision.message_id == revisions[0].message_id,
+        )
+    )
+    assert first_membership is not None and first_membership.revision_id == revisions[0].id
+    assert second_membership is not None and second_membership.revision_id == revisions[1].id
+
+
+def test_sqlite_foreign_keys_are_enforced(db_session: Session) -> None:
+    with pytest.raises(Exception, match="FOREIGN KEY"):
+        db_session.add(
+            SnapshotMessageRevision(
+                snapshot_id="missing",
+                message_id="missing",
+                revision_id="missing",
+            )
+        )
+        db_session.commit()
+
+
+def test_two_conversations_in_one_namespace_share_participant_identity(
+    db_session: Session, tmp_path: Path
+) -> None:
+    corpus = make_corpus(db_session)
+    store = ContentAddressedStore(tmp_path / "objects")
+    service = ImportService(db_session)
+    for conversation_id in ("chat-a", "chat-b"):
+        payload = {
+            "id": conversation_id,
+            "name": conversation_id,
+            "messages": [
+                {
+                    "id": 1,
+                    "type": "message",
+                    "date": "2026-01-01T10:00:00+00:00",
+                    "from": "Анна",
+                    "from_id": "user-anna",
+                    "text": "Проверяем общую идентичность участника.",
+                }
+            ],
+        }
+        path = tmp_path / f"{conversation_id}.json"
+        path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        with path.open("rb") as source:
+            stored = store.put_stream(source)
+        service.import_object(corpus, stored, "shared-export.json", "application/json", "telegram")
+    assert db_session.scalar(select(func.count()).select_from(Conversation)) == 2
+    assert db_session.scalar(select(func.count()).select_from(Participant)) == 1

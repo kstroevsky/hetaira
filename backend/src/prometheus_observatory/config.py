@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     pipeline_version: str = "0.1.0"
     default_language: str = "ru"
     default_session_gap_hours: int = Field(default=8, ge=1, le=72)
+    import_batch_size: int = Field(default=500, ge=10, le=10_000)
+    analysis_page_size: int = Field(default=500, ge=10, le=10_000)
+    allow_sqlite_create_all: bool = True
 
     @property
     def cors_origin_list(self) -> list[str]:

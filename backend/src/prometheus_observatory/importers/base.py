@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,9 @@ class NormalizedMessage:
     sender_external_id: str | None
     sender_name: str
     sent_at: datetime
+    source_local_timestamp: str
+    source_timezone_assumption: str | None
+    resolution_confidence: float
     text: str
     reply_to_external_id: str | None = None
     message_type: str = "message"
@@ -38,5 +42,16 @@ class NormalizedConversation:
     warnings: list[str] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class ConversationMetadata:
+    external_id: str
+    title: str
+    platform: str
+    source_namespace: str
+    warnings: list[str] = field(default_factory=list)
+
+
 class ConversationParser(Protocol):
-    def parse(self, path: Path) -> NormalizedConversation: ...
+    def metadata(self, path: Path) -> ConversationMetadata: ...
+
+    def iter_messages(self, path: Path) -> Iterator[NormalizedMessage]: ...

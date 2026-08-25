@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
 from ..text import normalize_text
-from .base import NormalizedConversation, NormalizedMessage
+from .base import ConversationMetadata, NormalizedMessage
 
 LINE_PATTERNS = [
     re.compile(
@@ -40,41 +41,44 @@ def _timestamp(date_value: str, time_value: str) -> datetime:
 class WhatsAppParser:
     platform = "whatsapp"
 
-    def parse(self, path: Path) -> NormalizedConversation:
-        lines = path.read_text(encoding="utf-8-sig").splitlines()
-        messages: list[NormalizedMessage] = []
-        warnings: list[str] = []
-        current: NormalizedMessage | None = None
-        for line_number, line in enumerate(lines, start=1):
-            match = None
-            for candidate in LINE_PATTERNS:
-                match = candidate.match(line)
-                if match:
-                    break
-            if match:
-                groups = match.groupdict()
-                try:
-                    sent_at = _timestamp(groups["date"], groups["time"])
-                except ValueError as error:
-                    warnings.append(f"line {line_number}: {error}")
-                    continue
-                current = NormalizedMessage(
-                    external_id=str(len(messages) + 1),
-                    sender_external_id=groups["sender"].strip(),
-                    sender_name=groups["sender"].strip(),
-                    sent_at=sent_at,
-                    text=normalize_text(groups["text"]),
-                    metadata={"source_line": line_number},
-                )
-                messages.append(current)
-            elif current is not None:
-                current.text = normalize_text(f"{current.text}\n{line}")
-            elif line.strip():
-                warnings.append(f"line {line_number}: content before first message ignored")
-        return NormalizedConversation(
+    def metadata(self, path: Path) -> ConversationMetadata:
+        return ConversationMetadata(
             external_id=path.stem,
             title=path.stem.replace("_", " "),
             platform=self.platform,
-            messages=messages,
-            warnings=warnings,
+            source_namespace=f"whatsapp:{path.stem}",
         )
+
+    def iter_messages(self, path: Path) -> Iterator[NormalizedMessage]:
+        current: NormalizedMessage | None = None
+        message_number = 0
+        with path.open("r", encoding="utf-8-sig") as lines:
+            for line_number, raw_line in enumerate(lines, start=1):
+                line = raw_line.rstrip("\r\n")
+                match = None
+                for candidate in LINE_PATTERNS:
+                    match = candidate.match(line)
+                    if match:
+                        break
+                if match:
+                    if current is not None:
+                        yield current
+                    groups = match.groupdict()
+                    sent_at = _timestamp(groups["date"], groups["time"])
+                    message_number += 1
+                    source_local_timestamp = f"{groups['date']} {groups['time']}"
+                    current = NormalizedMessage(
+                        external_id=str(message_number),
+                        sender_external_id=groups["sender"].strip(),
+                        sender_name=groups["sender"].strip(),
+                        sent_at=sent_at,
+                        source_local_timestamp=source_local_timestamp,
+                        source_timezone_assumption="UTC_ASSUMED_WHATSAPP_EXPORT",
+                        resolution_confidence=0.4,
+                        text=normalize_text(groups["text"]),
+                        metadata={"source_line": line_number},
+                    )
+                elif current is not None:
+                    current.text = normalize_text(f"{current.text}\n{line}")
+        if current is not None:
+            yield current

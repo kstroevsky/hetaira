@@ -17,6 +17,8 @@ from .models import (
     Annotation,
     Corpus,
     CorpusSnapshot,
+    DerivationEdge,
+    EpistemicObservation,
     Finding,
     MeasurementDefinition,
     MeasurementResult,
@@ -25,6 +27,7 @@ from .models import (
     Participant,
     PropositionMention,
     ResponseRelation,
+    SnapshotMessageRevision,
     Span,
     StanceObservation,
     Utterance,
@@ -109,9 +112,10 @@ class DeterministicAnalyzer:
         self.session.flush()
         rows = self.session.execute(
             select(Message, MessageRevision, Participant)
-            .join(MessageRevision, MessageRevision.message_id == Message.id)
+            .join(SnapshotMessageRevision, SnapshotMessageRevision.message_id == Message.id)
+            .join(MessageRevision, MessageRevision.id == SnapshotMessageRevision.revision_id)
             .outerjoin(Participant, Participant.id == Message.sender_id)
-            .where(Message.conversation_id.in_(select_conversation_ids(corpus_id)))
+            .where(SnapshotMessageRevision.snapshot_id == snapshot.id)
             .order_by(Message.sent_at)
         ).all()
         total = max(len(rows), 1)
@@ -138,31 +142,6 @@ class DeterministicAnalyzer:
                             confidence=0.92 if act != "ASSERT" else 0.72,
                         )
                     )
-                epistemic = (
-                    "UNCERTAIN"
-                    if PATTERNS["UNCERTAIN"].search(utterance.exact_text)
-                    else "COMMITTED"
-                )
-                commitment = 0.45 if epistemic == "UNCERTAIN" else 0.78
-                self.session.add(
-                    self._annotation(
-                        snapshot.id,
-                        run.id,
-                        "span",
-                        span.id,
-                        "epistemic_state",
-                        {
-                            "label": epistemic,
-                            "holder_id": message.sender_id,
-                            "polarity": "accept",
-                            "commitment": commitment,
-                            "certainty": commitment,
-                            "evidential_basis": "unspecified",
-                        },
-                        span,
-                        confidence=0.86,
-                    )
-                )
                 grounding = self._grounding(utterance.exact_text)
                 if grounding:
                     self.session.add(
@@ -218,6 +197,15 @@ class DeterministicAnalyzer:
                     self.session.add(proposition)
                     self.session.flush()
                     proposition_by_message[message.id].append(proposition)
+                    if message.sender_id:
+                        self._epistemic_observation(
+                            snapshot.id,
+                            run.id,
+                            message.sender_id,
+                            proposition,
+                            span,
+                            utterance.exact_text,
+                        )
             task.progress = index / total
             if index % 250 == 0:
                 task.checkpoint = {"processed": index, "last_message_id": message.id}
@@ -230,6 +218,7 @@ class DeterministicAnalyzer:
             message_lookup,
             external_lookup,
         )
+        self._connect_annotations(run.id)
         self._measure(corpus, snapshot, run, rows)
         task.status = RunStatus.COMPLETED
         task.progress = 1
@@ -347,6 +336,50 @@ class DeterministicAnalyzer:
             },
         )
 
+    def _epistemic_observation(
+        self,
+        snapshot_id: str,
+        run_id: str,
+        holder_id: str,
+        proposition: PropositionMention,
+        span: Span,
+        text: str,
+    ) -> None:
+        label = "UNCERTAIN" if PATTERNS["UNCERTAIN"].search(text) else "COMMITTED"
+        commitment = 0.45 if label == "UNCERTAIN" else 0.78
+        annotation = self._annotation(
+            snapshot_id,
+            run_id,
+            "proposition",
+            proposition.id,
+            "epistemic_state",
+            {
+                "label": label,
+                "holder_id": holder_id,
+                "proposition_id": proposition.id,
+                "polarity": "accept",
+                "commitment": commitment,
+                "certainty": commitment,
+                "evidential_basis": "unspecified",
+            },
+            span,
+            confidence=0.86,
+        )
+        self.session.add(annotation)
+        self.session.flush()
+        self.session.add(
+            EpistemicObservation(
+                annotation_id=annotation.id,
+                holder_id=holder_id,
+                proposition_id=proposition.id,
+                polarity="accept",
+                commitment=commitment,
+                certainty=commitment,
+                evidential_basis="unspecified",
+            )
+        )
+        self._derive("span", span.id, "annotation", annotation.id, "DERIVED_FROM", run_id)
+
     def _stance_observations(
         self,
         snapshot_id: str,
@@ -375,7 +408,13 @@ class DeterministicAnalyzer:
             span = self.session.scalar(select(Span).where(Span.revision_id == revision.id))
             if span is None:
                 continue
-            target = proposition_by_message[target_message.id][0]
+            candidates = proposition_by_message[target_message.id]
+            if len(candidates) != 1:
+                self._unresolved_stance(
+                    snapshot_id, run_id, message, span, position, strength, candidates
+                )
+                continue
+            target = candidates[0]
             annotation = self._annotation(
                 snapshot_id,
                 run_id,
@@ -403,8 +442,92 @@ class DeterministicAnalyzer:
                     position=position,
                     strength=strength,
                     certainty=0.8,
+                    target_weight=1.0,
+                    resolution_status="RESOLVED",
                 )
             )
+            self._derive("span", span.id, "annotation", annotation.id, "DERIVED_FROM", run_id)
+
+    def _unresolved_stance(
+        self,
+        snapshot_id: str,
+        run_id: str,
+        message: Message,
+        span: Span,
+        position: str,
+        strength: float,
+        candidates: list[PropositionMention],
+    ) -> None:
+        annotation = self._annotation(
+            snapshot_id,
+            run_id,
+            "message",
+            message.id,
+            "stance",
+            {
+                "position": position,
+                "holder_id": message.sender_id,
+                "resolution_status": "ABSTAIN",
+                "candidate_target_ids": [candidate.id for candidate in candidates],
+                "strength": strength,
+            },
+            span,
+            confidence=0.45,
+        )
+        annotation.status = "disputed"
+        annotation.alternatives = [
+            {"target_id": candidate.id, "weight": 1 / len(candidates)} for candidate in candidates
+        ]
+        self.session.add(annotation)
+        self.session.flush()
+        self._derive("span", span.id, "annotation", annotation.id, "DERIVED_FROM", run_id)
+
+    def _derive(
+        self,
+        source_type: str,
+        source_id: str,
+        target_type: str,
+        target_id: str,
+        relation: str,
+        run_id: str,
+    ) -> None:
+        self.session.add(
+            DerivationEdge(
+                source_type=source_type,
+                source_id=source_id,
+                target_type=target_type,
+                target_id=target_id,
+                relation=relation,
+                run_id=run_id,
+            )
+        )
+
+    def _connect_annotations(self, run_id: str) -> None:
+        annotations = self.session.scalars(select(Annotation).where(Annotation.run_id == run_id))
+        for annotation in annotations:
+            for evidence in annotation.evidence:
+                source_id = evidence.get("object_id")
+                source_type = evidence.get("object_type")
+                if source_id and source_type:
+                    existing = self.session.scalar(
+                        select(DerivationEdge.id).where(
+                            DerivationEdge.source_type == source_type,
+                            DerivationEdge.source_id == source_id,
+                            DerivationEdge.target_type == "annotation",
+                            DerivationEdge.target_id == annotation.id,
+                            DerivationEdge.relation == "DERIVED_FROM",
+                            DerivationEdge.run_id == run_id,
+                        )
+                    )
+                    if existing is None:
+                        self._derive(
+                            source_type,
+                            source_id,
+                            "annotation",
+                            annotation.id,
+                            "DERIVED_FROM",
+                            run_id,
+                        )
 
     def _measure(
         self,
@@ -441,27 +564,42 @@ class DeterministicAnalyzer:
             else {}
         )
         entropy = -sum(value * math.log(value, 2) for value in shares.values() if value)
-        self.session.add(
-            MeasurementResult(
-                definition_id="participation-share@1",
-                run_id=run.id,
-                subject_type="corpus",
-                subject_id=corpus.id,
-                result={
-                    "estimate": shares,
-                    "entropy_bits": entropy,
-                    "numerator": counts,
-                    "denominator": total,
-                    "sample_size": total,
-                    "uncertainty": {"method": "descriptive", "explanation": []},
-                    "provenance": {"snapshot_id": snapshot.id, "run_id": run.id},
-                },
-            )
+        participation_result = MeasurementResult(
+            definition_id="participation-share@1",
+            run_id=run.id,
+            subject_type="corpus",
+            subject_id=corpus.id,
+            result={
+                "estimate": shares,
+                "entropy_bits": entropy,
+                "numerator": counts,
+                "denominator": total,
+                "sample_size": total,
+                "uncertainty": {"method": "descriptive", "explanation": []},
+                "provenance": {"snapshot_id": snapshot.id, "run_id": run.id},
+            },
+            provenance={"snapshot_id": snapshot.id, "run_id": run.id},
         )
+        self.session.add(participation_result)
+        self.session.flush()
+        for message, _revision, _participant in rows:
+            self._derive(
+                "message",
+                message.id,
+                "measurement",
+                participation_result.id,
+                "USES_OBSERVATION",
+                run.id,
+            )
         replies = self.session.execute(
             select(Message.sender_id, Message.id, ResponseRelation.target_message_id)
             .join(ResponseRelation, ResponseRelation.source_message_id == Message.id)
-            .where(Message.conversation_id.in_(select_conversation_ids(corpus.id)))
+            .join(SnapshotMessageRevision, SnapshotMessageRevision.message_id == Message.id)
+            .where(
+                SnapshotMessageRevision.snapshot_id == snapshot.id,
+                ResponseRelation.explicit.is_(True),
+                ResponseRelation.relation_type == "REPLIES_TO",
+            )
         ).all()
         target_sender = {message.id: message.sender_id for message, _, _ in rows}
         directed = Counter(
@@ -475,28 +613,48 @@ class DeterministicAnalyzer:
         )
         reply_total = sum(directed.values())
         reciprocity = reciprocated / reply_total if reply_total else 0
-        self.session.add(
-            MeasurementResult(
-                definition_id="reply-reciprocity@1",
-                run_id=run.id,
-                subject_type="corpus",
-                subject_id=corpus.id,
-                result={
-                    "estimate": reciprocity,
-                    "numerator": reciprocated,
-                    "denominator": reply_total,
-                    "sample_size": reply_total,
-                    "directed_edges": {
-                        f"{source}->{target}": count for (source, target), count in directed.items()
-                    },
-                    "uncertainty": {
-                        "method": "descriptive",
-                        "explanation": ["Только явные ответы"],
-                    },
-                    "provenance": {"snapshot_id": snapshot.id, "run_id": run.id},
+        reciprocity_result = MeasurementResult(
+            definition_id="reply-reciprocity@1",
+            run_id=run.id,
+            subject_type="corpus",
+            subject_id=corpus.id,
+            result={
+                "estimate": reciprocity,
+                "numerator": reciprocated,
+                "denominator": reply_total,
+                "sample_size": reply_total,
+                "directed_edges": {
+                    f"{source}->{target}": count for (source, target), count in directed.items()
                 },
+                "uncertainty": {
+                    "method": "descriptive",
+                    "explanation": ["Только явные ответы"],
+                },
+                "provenance": {"snapshot_id": snapshot.id, "run_id": run.id},
+            },
+            provenance={"snapshot_id": snapshot.id, "run_id": run.id},
+        )
+        self.session.add(reciprocity_result)
+        self.session.flush()
+        response_ids = self.session.scalars(
+            select(ResponseRelation.id)
+            .join(Message, Message.id == ResponseRelation.source_message_id)
+            .join(SnapshotMessageRevision, SnapshotMessageRevision.message_id == Message.id)
+            .where(
+                SnapshotMessageRevision.snapshot_id == snapshot.id,
+                ResponseRelation.explicit.is_(True),
+                ResponseRelation.relation_type == "REPLIES_TO",
             )
         )
+        for response_id in response_ids:
+            self._derive(
+                "response_relation",
+                response_id,
+                "measurement",
+                reciprocity_result.id,
+                "USES_OBSERVATION",
+                run.id,
+            )
         top = max(shares.items(), key=lambda item: item[1], default=(None, 0))
         if top[0]:
             participant = self.session.get(Participant, top[0])
@@ -513,27 +671,32 @@ class DeterministicAnalyzer:
                 .where(MeasurementResult.run_id == run.id)
                 .order_by(MeasurementResult.created_at)
             )
-            self.session.add(
-                Finding(
-                    run_id=run.id,
-                    claim=(
-                        f"{participant.display_name if participant else 'Участник'} "
-                        f"написал(а) наибольшую долю сообщений: {top[1]:.0%}."
-                    ),
-                    epistemic_level=EpistemicLevel.MEASUREMENT,
-                    causal_status=CausalStatus.DESCRIPTIVE,
-                    supporting_evidence=evidence,
-                    counterevidence=[],
-                    alternative_explanations=[
-                        "Доля сообщений не является мерой влияния или власти."
-                    ],
-                    sensitivity_results=[],
-                    dependency_dag_root=(
-                        measurement.id if measurement else "participation-share@1"
-                    ),
-                    provenance={"snapshot_id": snapshot.id, "run_id": run.id},
-                )
+            finding = Finding(
+                run_id=run.id,
+                claim=(
+                    f"{participant.display_name if participant else 'Участник'} "
+                    f"написал(а) наибольшую долю сообщений: {top[1]:.0%}."
+                ),
+                epistemic_level=EpistemicLevel.MEASUREMENT,
+                causal_status=CausalStatus.DESCRIPTIVE,
+                supporting_evidence=evidence,
+                counterevidence=[],
+                alternative_explanations=["Доля сообщений не является мерой влияния или власти."],
+                sensitivity_results=[],
+                dependency_dag_root=(measurement.id if measurement else "participation-share@1"),
+                provenance={"snapshot_id": snapshot.id, "run_id": run.id},
             )
+            self.session.add(finding)
+            self.session.flush()
+            if measurement:
+                self._derive(
+                    "measurement",
+                    measurement.id,
+                    "finding",
+                    finding.id,
+                    "SUPPORTS_FINDING",
+                    run.id,
+                )
 
 
 def select_conversation_ids(corpus_id: str):

@@ -9,13 +9,16 @@ from . import models  # noqa: F401
 from .api import router
 from .codebooks import register_codebooks
 from .config import get_settings
-from .database import Base, SessionLocal, engine
+from .database import Base, SessionLocal, assert_postgres_migration_current, engine
 from .seed import seed_demo
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    Base.metadata.create_all(engine)
+    if engine.dialect.name == "sqlite" and get_settings().allow_sqlite_create_all:
+        Base.metadata.create_all(engine)
+    else:
+        assert_postgres_migration_current(engine)
     with SessionLocal() as session:
         register_codebooks(session)
         if get_settings().seed_demo:
