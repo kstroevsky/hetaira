@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from pathlib import Path
-
+import yaml
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .analyzer import DeterministicAnalyzer
-from .codebooks import load_codebook
 from .config import get_settings
 from .database import get_session
 from .importers import ImportService
-from .models import AnalysisRun, CodebookVersion, Corpus
+from .models import AnalysisRun, CodebookArtifact, CodebookRelease, Corpus
 from .object_store import ContentAddressedStore
 from .ontology import PrivacyPolicy
 from .research_planner import AnalysisPlan, BoundedPlannerRuntime
@@ -142,18 +140,22 @@ def list_runs(session: Session = Depends(get_session)) -> list[AnalysisRun]:
 
 @router.get("/codebooks")
 def list_codebooks(session: Session = Depends(get_session)) -> list[dict]:
-    versions = session.scalars(select(CodebookVersion).order_by(CodebookVersion.language)).all()
+    releases = session.execute(
+        select(CodebookRelease, CodebookArtifact)
+        .join(CodebookArtifact, CodebookArtifact.content_hash == CodebookRelease.artifact_hash)
+        .order_by(CodebookRelease.language, CodebookRelease.codebook_key)
+    ).all()
     return [
         {
-            "id": item.id,
-            "key": item.codebook_key,
-            "version": item.version,
-            "language": item.language,
-            "validated": item.validated,
-            "content_hash": item.content_hash,
-            "content": load_codebook(Path(item.source_path)),
+            "id": release.id,
+            "key": release.codebook_key,
+            "version": release.semantic_version,
+            "language": release.language,
+            "validated": release.validated,
+            "content_hash": release.artifact_hash,
+            "content": yaml.safe_load(artifact.content),
         }
-        for item in versions
+        for release, artifact in releases
     ]
 
 

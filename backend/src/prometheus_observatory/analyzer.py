@@ -10,13 +10,16 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .codebooks import release_identity
 from .config import get_settings
+from .measurements import MeasurementContext, foundational_registry
 from .models import (
     AnalysisRun,
     AnalysisTask,
     Annotation,
     Corpus,
     CorpusSnapshot,
+    DependencyFingerprint,
     DerivationEdge,
     EpistemicObservation,
     Finding,
@@ -77,8 +80,21 @@ class DeterministicAnalyzer:
         )
         if snapshot is None:
             raise ValueError("corpus has no snapshot")
+        codebook_release, codebook_hash = release_identity(
+            self.session, "foundational-conversation-ru", "0.1.0"
+        )
+        self.codebook_version = codebook_release
+        self.codebook_hash = codebook_hash
+        dependencies = {
+            "snapshot_manifest": snapshot.manifest_hash,
+            "codebook_artifact": codebook_hash,
+            "pipeline": self.settings.pipeline_version,
+            "ontology": self.settings.ontology_version,
+            "model_runtime": f"deterministic:{self.model_name}",
+            "measurement_definitions": "participation-share@1,reply-reciprocity@1",
+        }
         idempotency_key = hashlib.sha256(
-            f"{snapshot.id}:{self.codebook_version}:{self.settings.pipeline_version}".encode()
+            "\n".join(f"{key}={value}" for key, value in sorted(dependencies.items())).encode()
         ).hexdigest()
         existing_task = self.session.scalar(
             select(AnalysisTask).where(AnalysisTask.idempotency_key == idempotency_key)
@@ -110,6 +126,15 @@ class DeterministicAnalyzer:
         )
         self.session.add(task)
         self.session.flush()
+        self.session.add_all(
+            DependencyFingerprint(
+                task_id=task.id,
+                dependency_type=dependency_type,
+                dependency_key=dependency_type,
+                fingerprint=hashlib.sha256(value.encode()).hexdigest(),
+            )
+            for dependency_type, value in dependencies.items()
+        )
         rows = self.session.execute(
             select(Message, MessageRevision, Participant)
             .join(SnapshotMessageRevision, SnapshotMessageRevision.message_id == Message.id)
@@ -328,6 +353,7 @@ class DeterministicAnalyzer:
                 "corpus_snapshot_id": snapshot_id,
                 "ontology_version": self.settings.ontology_version,
                 "codebook_version": self.codebook_version,
+                "codebook_artifact_hash": self.codebook_hash,
                 "pipeline_version": self.settings.pipeline_version,
                 "model_provider": "deterministic",
                 "model": self.model_name,
@@ -536,6 +562,46 @@ class DeterministicAnalyzer:
         run: AnalysisRun,
         rows: list[tuple[Message, MessageRevision, Participant | None]],
     ) -> None:
+        registry = foundational_registry()
+        context = MeasurementContext(
+            session=self.session,
+            corpus_id=corpus.id,
+            snapshot_id=snapshot.id,
+            run_id=run.id,
+        )
+        participation_result = registry.execute("participation-share@1", context)
+        registry.execute("reply-reciprocity@1", context)
+        shares = participation_result.result.get("estimate", {})
+        top = max(shares.items(), key=lambda item: item[1], default=(None, 0))
+        if top[0]:
+            participant = self.session.get(Participant, top[0])
+            finding = Finding(
+                run_id=run.id,
+                claim=(
+                    f"{participant.display_name if participant else 'Участник'} "
+                    f"написал(а) наибольшую долю сообщений: {top[1]:.0%}."
+                ),
+                epistemic_level=EpistemicLevel.MEASUREMENT,
+                causal_status=CausalStatus.DESCRIPTIVE,
+                supporting_evidence=[],
+                counterevidence=[],
+                alternative_explanations=["Доля сообщений не является мерой влияния или власти."],
+                sensitivity_results=[],
+                dependency_dag_root=participation_result.id,
+                provenance={"snapshot_id": snapshot.id, "run_id": run.id},
+            )
+            self.session.add(finding)
+            self.session.flush()
+            self._derive(
+                "measurement",
+                participation_result.id,
+                "finding",
+                finding.id,
+                "SUPPORTS_FINDING",
+                run.id,
+            )
+        return
+
         definitions = [
             ("participation-share@1", "Распределение участия", "participant"),
             ("reply-reciprocity@1", "Взаимность ответов", "dyad"),
