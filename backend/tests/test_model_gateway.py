@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy.orm import Session
 
 from prometheus_observatory.model_gateway import (
+    EgressPolicyEnforcer,
     EvidenceBundle,
     EvidenceItem,
     GenericHTTPAdapter,
+    LocalOpenAICompatibleAdapter,
     ModelPolicy,
+    RemoteOpenAICompatibleAdapter,
     pseudonymize_bundle,
+    sanitize_egress_bundle,
 )
+from prometheus_observatory.models import Corpus
 from prometheus_observatory.ontology import PrivacyPolicy
 
 
@@ -34,3 +40,62 @@ def test_pseudonymization_preserves_stable_identity() -> None:
     )
     assert all(item.participant == "Участник 1" for item in bundle.items)
     assert all("Анна" not in item.text for item in bundle.items)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://localhost:8080/v1",
+        "http://0.0.0.0:8080/v1",
+        "https://127.0.0.1:8080/v1",
+        "http://127.0.0.2:8080/v1",
+        "http://local-model.example:8080/v1",
+    ],
+)
+def test_local_adapter_accepts_only_literal_http_loopback(url: str) -> None:
+    with pytest.raises(ValueError, match="literal loopback"):
+        LocalOpenAICompatibleAdapter(base_url=url, model="test")
+
+
+def test_local_adapter_accepts_ipv4_and_ipv6_loopback() -> None:
+    assert LocalOpenAICompatibleAdapter(base_url="http://127.0.0.1:8080/v1", model="test").is_local
+    assert LocalOpenAICompatibleAdapter(base_url="http://[::1]:8080/v1", model="test").is_local
+
+
+def test_pseudonymization_builds_complete_map_before_redacting() -> None:
+    bundle, _count = sanitize_egress_bundle(
+        [
+            EvidenceItem(
+                evidence_id="raw-id",
+                text="Анна пишет Борису: https://private.example/user/1",
+                participant="Анна",
+                metadata={"username": "anna", "language": "ru", "attachment_path": "/x"},
+            ),
+            EvidenceItem(evidence_id="raw-id-2", text="Борис отвечает Анне", participant="Борис"),
+        ],
+        PrivacyPolicy.API_PSEUDONYMIZED_MINIMAL,
+        "test",
+        identities=["Анна", "Борис"],
+    )
+    serialized = bundle.model_dump_json()
+    assert "Анна" not in serialized and "Борис" not in serialized
+    assert "private.example" not in serialized
+    assert "username" not in serialized and "attachment_path" not in serialized
+    assert bundle.items[0].evidence_id == "E1"
+    assert bundle.items[0].metadata == {"language": "ru"}
+
+
+def test_model_policy_cannot_exceed_persisted_corpus_policy(db_session: Session) -> None:
+    corpus = Corpus(name="Закрытый", privacy_policy="LOCAL_ONLY")
+    db_session.add(corpus)
+    db_session.commit()
+    adapter = RemoteOpenAICompatibleAdapter(base_url="https://api.example", model="test")
+    with pytest.raises(PermissionError, match="exceeds corpus"):
+        EgressPolicyEnforcer(db_session).enforce(
+            corpus,
+            adapter,
+            [EvidenceItem(evidence_id="1", text="секрет")],
+            ModelPolicy(privacy_policy=PrivacyPolicy.API_PSEUDONYMIZED_MINIMAL),
+            "test",
+            approved=True,
+        )
