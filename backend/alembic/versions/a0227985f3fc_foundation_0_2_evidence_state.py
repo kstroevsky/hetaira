@@ -224,10 +224,24 @@ def upgrade() -> None:
         batch.add_column(
             sa.Column('resolution_status', sa.String(length=24), nullable=False, server_default='RESOLVED')
         )
+    if op.get_bind().dialect.name == 'postgresql':
+        op.execute('CREATE EXTENSION IF NOT EXISTS pg_trgm')
+        op.execute('CREATE EXTENSION IF NOT EXISTS vector')
+        op.execute(
+            "CREATE INDEX ix_message_revisions_fts_ru ON message_revisions "
+            "USING gin (to_tsvector('russian'::regconfig, text))"
+        )
+        op.execute(
+            'CREATE INDEX ix_message_revisions_text_trgm ON message_revisions '
+            'USING gin (text gin_trgm_ops)'
+        )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
+    if op.get_bind().dialect.name == 'postgresql':
+        op.drop_index('ix_message_revisions_text_trgm', table_name='message_revisions')
+        op.drop_index('ix_message_revisions_fts_ru', table_name='message_revisions')
     with op.batch_alter_table('stance_observations') as batch:
         batch.drop_column('resolution_status')
         batch.drop_column('target_weight')

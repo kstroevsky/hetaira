@@ -404,7 +404,6 @@ class DeterministicAnalyzer:
                 evidential_basis="unspecified",
             )
         )
-        self._derive("span", span.id, "annotation", annotation.id, "DERIVED_FROM", run_id)
 
     def _stance_observations(
         self,
@@ -472,7 +471,6 @@ class DeterministicAnalyzer:
                     resolution_status="RESOLVED",
                 )
             )
-            self._derive("span", span.id, "annotation", annotation.id, "DERIVED_FROM", run_id)
 
     def _unresolved_stance(
         self,
@@ -506,7 +504,6 @@ class DeterministicAnalyzer:
         ]
         self.session.add(annotation)
         self.session.flush()
-        self._derive("span", span.id, "annotation", annotation.id, "DERIVED_FROM", run_id)
 
     def _derive(
         self,

@@ -17,6 +17,7 @@ from .models import (
     Message,
     MessageRevision,
     Participant,
+    PropositionMention,
     SnapshotMessageRevision,
     Span,
     Utterance,
@@ -95,6 +96,7 @@ class WorkspaceService:
             raise LookupError("message is not present in any snapshot")
         row = self.session.execute(
             select(Message, MessageRevision, Participant)
+            .select_from(Message)
             .join(MessageRevision, MessageRevision.id == membership.revision_id)
             .outerjoin(Participant, Participant.id == Message.sender_id)
             .where(Message.id == message_id)
@@ -108,13 +110,22 @@ class WorkspaceService:
         utterance_ids = list(
             self.session.scalars(select(Utterance.id).where(Utterance.revision_id == revision.id))
         )
+        proposition_ids = list(
+            self.session.scalars(
+                select(PropositionMention.id).where(
+                    PropositionMention.utterance_id.in_(utterance_ids)
+                )
+            )
+        )
         annotations = list(
             self.session.scalars(
                 select(Annotation)
                 .where(
                     Annotation.snapshot_id == membership.snapshot_id,
                     Annotation.superseded_by.is_(None),
-                    Annotation.object_id.in_(span_ids + utterance_ids + [message.id]),
+                    Annotation.object_id.in_(
+                        span_ids + utterance_ids + proposition_ids + [message.id]
+                    ),
                 )
                 .order_by(Annotation.created_at)
             )
@@ -239,6 +250,7 @@ class WorkspaceService:
         participant_count = self.session.scalar(
             select(func.count()).select_from(Participant).where(Participant.corpus_id == corpus.id)
         )
+        snapshot = self._snapshot(corpus.id, None)
         return WorkspaceResponse(
             corpus=CorpusRead.model_validate(corpus),
             messages=messages,
@@ -250,6 +262,8 @@ class WorkspaceService:
                 "participant_count": participant_count or 0,
                 "validated_language": corpus.is_validated_language,
                 "epistemic_levels": ["L0", "L1", "L2", "L3", "L4"],
+                "snapshot_id": snapshot.id,
+                "snapshot_manifest_hash": snapshot.manifest_hash,
             },
         )
 

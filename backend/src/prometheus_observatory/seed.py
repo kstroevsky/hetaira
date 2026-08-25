@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from .analyzer import DeterministicAnalyzer
 from .config import get_settings
 from .importers import ImportService
-from .models import Corpus
+from .models import AnalysisRun, Corpus, CorpusSnapshot
 from .object_store import ContentAddressedStore
 
 RUSSIAN_DEMO_MESSAGES = [
@@ -95,6 +95,17 @@ def _telegram_payload(english: bool = False) -> bytes:
 
 def seed_demo(session: Session) -> None:
     if session.scalar(select(func.count()).select_from(Corpus)):
+        russian = session.scalar(select(Corpus).where(Corpus.language == "ru"))
+        if russian is not None:
+            run = session.scalar(
+                select(AnalysisRun).where(
+                    AnalysisRun.snapshot_id.in_(
+                        select(CorpusSnapshot.id).where(CorpusSnapshot.corpus_id == russian.id)
+                    )
+                )
+            )
+            if run is None:
+                DeterministicAnalyzer(session).analyze(russian.id)
         return
     settings = get_settings()
     store = ContentAddressedStore(settings.object_store)
