@@ -81,5 +81,7 @@ export type Workspace = {
     participant_count: number
     validated_language: boolean
     epistemic_levels: string[]
+    snapshot_id: string
+    snapshot_manifest_hash: string
   }
 }

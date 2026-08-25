@@ -30,6 +30,8 @@ const workspace = {
   overview: {
     message_count: 1, participant_count: 1, validated_language: true,
     epistemic_levels: ['L0'],
+    snapshot_id: 'snapshot-12345678',
+    snapshot_manifest_hash: 'manifestabcdef123456',
   },
 }
 
@@ -59,5 +61,6 @@ describe('Prometheus workbench', () => {
     expect(await screen.findByText('Микроскоп анализа')).toBeInTheDocument()
     expect(screen.getByText('Цепочка доказательств')).toBeInTheDocument()
     expect(screen.getByText('LOCAL ONLY')).toBeInTheDocument()
+    expect(screen.getByLabelText('Активный снимок корпуса')).toHaveTextContent('snapshot')
   })
 })

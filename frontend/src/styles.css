@@ -97,7 +97,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   min-width: 0;
   flex: 1;
   display: grid;
-  grid-template-rows: var(--topbar-height) minmax(0, 1fr) var(--footer-height);
+  grid-template-rows: var(--topbar-height) 26px minmax(0, 1fr) var(--footer-height);
 }
 .topbar {
   display: flex;
@@ -175,6 +175,15 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-size: 12px;
   font-weight: 700;
   text-align: center;
+}
+.snapshot-strip {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--slate-200);
+  background: var(--slate-100);
+  color: var(--slate-700);
+  font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .workspace-grid {
@@ -648,6 +657,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .brand span, .nav-item span, .sidebar-bottom span { display: none; }
   .brand { justify-content: center; padding: 0; }
   .nav-item { justify-content: center; }
-  .workspace-grid { grid-template-columns: 330px minmax(510px, 1fr) 330px; }
+  .workspace-grid { grid-template-columns: 270px minmax(430px, 1fr) 280px; }
   .import-button { font-size: 0; }
 }

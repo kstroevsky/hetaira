@@ -61,19 +61,19 @@ export default function App() {
       : all
   }, [query, workspaceQuery.data?.messages])
 
-  if (corporaQuery.isLoading || workspaceQuery.isLoading || !workspaceQuery.data) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-mark">P</div>
-        <p>Открываем обсерваторию…</p>
-      </div>
-    )
-  }
   if (corporaQuery.error || workspaceQuery.error) {
     return (
       <div className="error-screen">
         <h1>Не удалось открыть рабочее пространство</h1>
         <p>{String(corporaQuery.error ?? workspaceQuery.error)}</p>
+      </div>
+    )
+  }
+  if (corporaQuery.isLoading || workspaceQuery.isLoading || !workspaceQuery.data) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-mark">P</div>
+        <p>Открываем обсерваторию…</p>
       </div>
     )
   }
@@ -100,6 +100,10 @@ export default function App() {
             продвижения моделей
           </div>
         ) : null}
+        <div className="snapshot-strip" aria-label="Активный снимок корпуса">
+          Снимок {workspaceQuery.data.overview.snapshot_id.slice(0, 8)} · manifest{' '}
+          {workspaceQuery.data.overview.snapshot_manifest_hash.slice(0, 12)}…
+        </div>
         <main className="workspace-grid">
           <MessageTimeline
             messages={messages}

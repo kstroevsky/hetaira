@@ -72,7 +72,7 @@ export function EvidenceChain({ microscope }: EvidenceChainProps) {
         tone="support"
       />
       <CaseList
-        title={`Контрпримеры (${microscope.counterexamples.length})`}
+        title={`Кодбук: сложные отрицательные примеры (${microscope.counterexamples.length})`}
         items={microscope.counterexamples}
         tone="counter"
       />
@@ -103,7 +103,11 @@ function CaseList({
           </div>
         ))
       ) : (
-        <p>Нет доступных примеров.</p>
+        <p>
+          {tone === 'counter'
+            ? 'Для этой задачи нет размеченных сложных отрицательных примеров.'
+            : 'Нет доступных подтверждающих случаев.'}
+        </p>
       )}
     </section>
   )
