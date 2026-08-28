@@ -8,7 +8,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - prometheus-postgres:/var/lib/postgresql/data
+      - prometheus-postgres18:/var/lib/postgresql
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/10-prometheus.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U prometheus -d prometheus"]
@@ -17,4 +17,4 @@ services:
       retries: 12
 
 volumes:
-  prometheus-postgres:
+  prometheus-postgres18:
