@@ -20,6 +20,7 @@ from .models import (
     ImportRun,
 )
 from .object_store import ContentAddressedStore
+from .observatory import ObservatoryBuilder
 from .ontology import PrivacyPolicy
 from .research_planner import AnalysisPlan, BoundedPlannerRuntime
 from .retrieval import HybridRetriever
@@ -117,6 +118,37 @@ def analyze_corpus(corpus_id: str, session: Session = Depends(get_session)) -> A
     except (LookupError, ValueError) as error:
         session.rollback()
         raise HTTPException(404 if isinstance(error, LookupError) else 422, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/observatory")
+def get_observatory(corpus_id: str, session: Session = Depends(get_session)) -> dict:
+    if session.get(Corpus, corpus_id) is None:
+        raise HTTPException(404, "corpus not found")
+    artifact = ObservatoryBuilder(session).latest(corpus_id)
+    if artifact is None:
+        raise HTTPException(404, "observatory overview has not been built")
+    return {
+        "artifact_id": artifact.id,
+        "content_hash": artifact.content_hash,
+        "run_id": artifact.run_id,
+        **artifact.payload,
+    }
+
+
+@router.post("/corpora/{corpus_id}/observatory", status_code=201)
+def build_observatory(corpus_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        artifact = ObservatoryBuilder(session).build(corpus_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    return {
+        "artifact_id": artifact.id,
+        "content_hash": artifact.content_hash,
+        "run_id": artifact.run_id,
+        **artifact.payload,
+    }
 
 
 @router.get("/corpora/{corpus_id}/messages", response_model=list[MessageListItem])

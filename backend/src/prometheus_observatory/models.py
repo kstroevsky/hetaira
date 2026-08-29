@@ -626,6 +626,19 @@ class DerivationEdge(Base, Timestamped):
     )
 
 
+class AnalyticalArtifact(Base, Timestamped):
+    __tablename__ = "analytical_artifacts"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    corpus_id: Mapped[str] = mapped_column(ForeignKey("corpora.id"), index=True)
+    snapshot_id: Mapped[str] = mapped_column(ForeignKey("corpus_snapshots.id"), index=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("analysis_runs.id"), index=True)
+    artifact_type: Mapped[str] = mapped_column(String(120), index=True)
+    analysis_version: Mapped[str] = mapped_column(String(40))
+    fingerprint: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
 IMMUTABLE_MODELS = (SourceArtifact, Message, MessageRevision)
 
 
