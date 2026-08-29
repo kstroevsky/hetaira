@@ -31,6 +31,7 @@ class CorpusRead(ORMModel):
 
 
 class ImportResult(BaseModel):
+    import_run_id: str
     corpus_id: str
     snapshot_id: str
     artifact_id: str
@@ -38,6 +39,24 @@ class ImportResult(BaseModel):
     imported_messages: int
     imported_participants: int
     warnings: list[str] = Field(default_factory=list)
+
+
+class ImportRunRead(ORMModel):
+    id: str
+    corpus_id: str
+    source_hash: str
+    platform: str
+    original_name: str
+    status: str
+    processed_messages: int
+    imported_messages: int
+    reused_messages: int
+    appended_revisions: int
+    checkpoint: dict[str, Any]
+    snapshot_id: str | None
+    error: str | None
+    created_at: datetime
+    completed_at: datetime | None
 
 
 class AnnotationRead(ORMModel):

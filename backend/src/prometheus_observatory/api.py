@@ -9,7 +9,7 @@ from .analyzer import DeterministicAnalyzer
 from .config import get_settings
 from .database import get_session
 from .importers import ImportService
-from .models import AnalysisRun, CodebookArtifact, CodebookRelease, Corpus
+from .models import AnalysisRun, CodebookArtifact, CodebookRelease, Corpus, ImportRun
 from .object_store import ContentAddressedStore
 from .ontology import PrivacyPolicy
 from .research_planner import AnalysisPlan, BoundedPlannerRuntime
@@ -18,6 +18,7 @@ from .schemas import (
     CorpusCreate,
     CorpusRead,
     ImportResult,
+    ImportRunRead,
     MessageListItem,
     MicroscopeResponse,
     RunRead,
@@ -70,6 +71,29 @@ def import_corpus(
         )
     except (ValueError, KeyError) as error:
         session.rollback()
+        raise HTTPException(422, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/imports", response_model=list[ImportRunRead])
+def list_imports(corpus_id: str, session: Session = Depends(get_session)) -> list[ImportRun]:
+    if session.get(Corpus, corpus_id) is None:
+        raise HTTPException(404, "corpus not found")
+    return list(
+        session.scalars(
+            select(ImportRun)
+            .where(ImportRun.corpus_id == corpus_id)
+            .order_by(ImportRun.created_at.desc())
+        )
+    )
+
+
+@router.post("/imports/{import_run_id}/resume", response_model=ImportResult)
+def resume_import(import_run_id: str, session: Session = Depends(get_session)) -> ImportResult:
+    try:
+        return ImportService(session).resume_import(import_run_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except (ValueError, FileNotFoundError, RuntimeError) as error:
         raise HTTPException(422, str(error)) from error
 
 

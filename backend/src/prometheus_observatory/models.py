@@ -78,11 +78,23 @@ class ImportRun(Base, Timestamped):
     source_hash: Mapped[str] = mapped_column(String(64), index=True)
     platform: Mapped[str] = mapped_column(String(32))
     source_namespace: Mapped[str] = mapped_column(String(240))
+    original_name: Mapped[str] = mapped_column(String(500))
+    media_type: Mapped[str] = mapped_column(String(160))
+    object_path: Mapped[str] = mapped_column(Text)
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    conversation_id: Mapped[str | None] = mapped_column(ForeignKey("conversations.id"), index=True)
+    parent_snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("corpus_snapshots.id"), index=True
+    )
+    snapshot_id: Mapped[str | None] = mapped_column(ForeignKey("corpus_snapshots.id"), index=True)
     status: Mapped[str] = mapped_column(String(24), default="running", index=True)
+    processed_messages: Mapped[int] = mapped_column(Integer, default=0)
     imported_messages: Mapped[int] = mapped_column(Integer, default=0)
+    imported_participants: Mapped[int] = mapped_column(Integer, default=0)
     reused_messages: Mapped[int] = mapped_column(Integer, default=0)
     appended_revisions: Mapped[int] = mapped_column(Integer, default=0)
     warnings: Mapped[list[str]] = mapped_column(JSON, default=list)
+    checkpoint: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
 

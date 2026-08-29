@@ -26,6 +26,7 @@ from ..models import (
     ResponseRelation,
     SnapshotMessageRevision,
     SourceArtifact,
+    new_id,
 )
 from ..object_store import StoredObject
 from ..schemas import ImportResult
@@ -40,6 +41,12 @@ PARSERS: dict[str, ConversationParser] = {
 }
 
 
+class ImportInterrupted(RuntimeError):
+    def __init__(self, run_id: str) -> None:
+        super().__init__(f"import interrupted after a durable checkpoint: {run_id}")
+        self.run_id = run_id
+
+
 class ImportService:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -52,115 +59,125 @@ class ImportService:
         original_name: str,
         media_type: str,
         platform: str,
+        *,
+        interrupt_after: int | None = None,
     ) -> ImportResult:
         parser = PARSERS[platform]
         parsed_metadata = parser.metadata(stored.path)
         source_namespace = f"{platform}:{Path(original_name).stem}"
-        external_conversation_id = (
-            parsed_metadata.external_id if platform == "telegram" else Path(original_name).stem
-        )
+        parent = self._latest_snapshot(corpus.id)
         import_run = ImportRun(
             corpus_id=corpus.id,
             source_hash=stored.sha256,
             platform=platform,
             source_namespace=source_namespace,
+            original_name=original_name,
+            media_type=media_type,
+            object_path=str(stored.path),
+            size_bytes=stored.size_bytes,
+            parent_snapshot_id=parent.id if parent else None,
             status="running",
+            warnings=parsed_metadata.warnings,
+            checkpoint={"processed_messages": 0},
         )
         self.session.add(import_run)
         self.session.commit()
+        return self._execute(import_run, interrupt_after=interrupt_after)
 
+    def resume_import(
+        self, import_run_id: str, *, interrupt_after: int | None = None
+    ) -> ImportResult:
+        import_run = self.session.get(ImportRun, import_run_id)
+        if import_run is None:
+            raise LookupError("import run not found")
+        if import_run.status == "completed":
+            if not import_run.snapshot_id:
+                raise RuntimeError("completed import is missing its snapshot")
+            return self._result(import_run)
+        if import_run.status not in {"running", "interrupted", "failed"}:
+            raise ValueError(f"import run cannot resume from status {import_run.status}")
+        artifact_path = Path(import_run.object_path)
+        if not artifact_path.is_file():
+            raise FileNotFoundError("content-addressed source artifact is missing")
+        import_run.status = "running"
+        import_run.error = None
+        import_run.completed_at = None
+        self.session.commit()
+        return self._execute(import_run, interrupt_after=interrupt_after)
+
+    def _execute(self, import_run: ImportRun, *, interrupt_after: int | None) -> ImportResult:
+        corpus = self.session.get(Corpus, import_run.corpus_id)
+        if corpus is None:
+            raise LookupError("import corpus not found")
+        parser = PARSERS[import_run.platform]
+        stored_path = Path(import_run.object_path)
+        parsed_metadata = parser.metadata(stored_path)
+        external_conversation_id = (
+            parsed_metadata.external_id
+            if import_run.platform == "telegram"
+            else Path(import_run.original_name).stem
+        )
         try:
-            parent = self.session.scalar(
-                select(CorpusSnapshot)
-                .where(CorpusSnapshot.corpus_id == corpus.id)
-                .order_by(CorpusSnapshot.created_at.desc(), CorpusSnapshot.id.desc())
-            )
             conversation = self._conversation(
                 corpus,
-                platform,
-                source_namespace,
+                import_run.platform,
+                import_run.source_namespace,
                 external_conversation_id,
                 parsed_metadata.title,
             )
-            participant_cache: dict[str, Participant] = {}
-            revision_by_message = self._parent_membership(parent)
-            imported_ids: set[str] = set()
-            imported_count = 0
-            new_participants = 0
-
-            for imported_count, item in enumerate(parser.iter_messages(stored.path), start=1):
-                participant, participant_created = self._participant(
-                    corpus,
-                    platform,
-                    source_namespace,
-                    item.sender_external_id,
-                    item.sender_name,
-                    participant_cache,
-                )
-                new_participants += int(participant_created)
-                message, message_created = self._message(conversation, participant, item)
-                imported_ids.add(message.id)
-                revision, appended = self._revision(corpus, message, item)
-                revision_by_message[message.id] = revision
-                if message_created:
-                    import_run.imported_messages += 1
-                    self._source_children(conversation, message, participant, item)
-                else:
-                    import_run.reused_messages += 1
-                import_run.appended_revisions += int(appended)
-                if imported_count % self.settings.import_batch_size == 0:
-                    self.session.flush()
-
-            self.session.flush()
-            self._responses(conversation, imported_ids)
-            self._segment(conversation, imported_ids)
-
-            manifest = sorted(
-                (message_id, revision.id) for message_id, revision in revision_by_message.items()
-            )
-            manifest_hash = hashlib.sha256(
-                json.dumps(manifest, separators=(",", ":")).encode()
-            ).hexdigest()
-            snapshot = CorpusSnapshot(
-                corpus_id=corpus.id,
-                source_hash=stored.sha256,
-                parent_snapshot_id=parent.id if parent else None,
-                manifest_hash=manifest_hash,
-                message_count=len(manifest),
-                label=f"{platform}:{original_name}",
-            )
-            self.session.add(snapshot)
-            self.session.flush()
-            self.session.add_all(
-                SnapshotMessageRevision(
-                    snapshot_id=snapshot.id,
-                    message_id=message_id,
-                    revision_id=revision_id,
-                )
-                for message_id, revision_id in manifest
-            )
-            artifact = SourceArtifact(
-                snapshot_id=snapshot.id,
-                sha256=stored.sha256,
-                original_name=original_name,
-                media_type=media_type,
-                size_bytes=stored.size_bytes,
-                object_path=str(stored.path),
-            )
-            self.session.add(artifact)
-            import_run.status = "completed"
-            import_run.completed_at = datetime.now(UTC)
-            import_run.warnings = parsed_metadata.warnings
+            import_run.conversation_id = conversation.id
             self.session.commit()
-            return ImportResult(
-                corpus_id=corpus.id,
-                snapshot_id=snapshot.id,
-                artifact_id=artifact.id,
-                source_hash=stored.sha256,
-                imported_messages=imported_count,
-                imported_participants=new_participants,
-                warnings=parsed_metadata.warnings,
-            )
+            participant_cache: dict[str, Participant] = {}
+            participant_sequence = [
+                self.session.scalar(
+                    select(func.count())
+                    .select_from(Participant)
+                    .where(Participant.corpus_id == corpus.id)
+                )
+                or 0
+            ]
+            processed = import_run.processed_messages
+            batch: list[NormalizedMessage] = []
+            last_ordinal = processed
+            for ordinal, item in enumerate(parser.iter_messages(stored_path), start=1):
+                if ordinal <= processed:
+                    continue
+                last_ordinal = ordinal
+                batch.append(item)
+                checkpoint_due = len(batch) >= self.settings.import_batch_size
+                interrupt_due = interrupt_after is not None and ordinal >= interrupt_after
+                if checkpoint_due or interrupt_due:
+                    self._commit_batch(
+                        import_run,
+                        corpus,
+                        conversation,
+                        participant_cache,
+                        participant_sequence,
+                        batch,
+                        ordinal,
+                    )
+                    batch = []
+                    if interrupt_due:
+                        import_run.status = "interrupted"
+                        import_run.error = "test/user interruption after durable checkpoint"
+                        self.session.commit()
+                        raise ImportInterrupted(import_run.id)
+            if batch:
+                self._commit_batch(
+                    import_run,
+                    corpus,
+                    conversation,
+                    participant_cache,
+                    participant_sequence,
+                    batch,
+                    last_ordinal,
+                )
+            self._segment_streaming(conversation)
+            self._finalize_snapshot(import_run, corpus, conversation)
+            self.session.commit()
+            return self._result(import_run)
+        except ImportInterrupted:
+            raise
         except Exception as error:
             self.session.rollback()
             persisted = self.session.get(ImportRun, import_run.id)
@@ -170,6 +187,88 @@ class ImportService:
                 persisted.completed_at = datetime.now(UTC)
                 self.session.commit()
             raise
+
+    def _commit_batch(
+        self,
+        import_run: ImportRun,
+        corpus: Corpus,
+        conversation: Conversation,
+        participant_cache: dict[str, Participant],
+        participant_sequence: list[int],
+        items: list[NormalizedMessage],
+        processed_ordinal: int,
+    ) -> None:
+        external_ids = [item.external_id for item in items]
+        message_cache = {
+            message.external_id: message
+            for message in self.session.scalars(
+                select(Message).where(
+                    Message.conversation_id == conversation.id,
+                    Message.external_id.in_(external_ids),
+                )
+            )
+        }
+        latest_revision: dict[str, MessageRevision] = {}
+        if message_cache:
+            revisions = self.session.scalars(
+                select(MessageRevision)
+                .where(
+                    MessageRevision.message_id.in_(
+                        [message.id for message in message_cache.values()]
+                    )
+                )
+                .order_by(
+                    MessageRevision.message_id,
+                    MessageRevision.revision_number.desc(),
+                )
+            )
+            for revision in revisions:
+                latest_revision.setdefault(revision.message_id, revision)
+        batch_messages: list[Message] = []
+        resolved_participants: list[Participant | None] = []
+        with self.session.no_autoflush:
+            for item in items:
+                participant, participant_created = self._participant(
+                    corpus,
+                    import_run.platform,
+                    import_run.source_namespace,
+                    item.sender_external_id,
+                    item.sender_name,
+                    participant_cache,
+                    participant_sequence,
+                )
+                import_run.imported_participants += int(participant_created)
+                resolved_participants.append(participant)
+        self.session.flush()
+        new_sources: list[tuple[Message, Participant | None, NormalizedMessage]] = []
+        for item, participant in zip(items, resolved_participants, strict=True):
+            message = message_cache.get(item.external_id)
+            if message is None:
+                message = self._new_message(conversation, participant, item)
+                message_cache[item.external_id] = message
+                self.session.add(message)
+                new_sources.append((message, participant, item))
+                import_run.imported_messages += 1
+            else:
+                import_run.reused_messages += 1
+            revision, appended = self._revision(
+                corpus, message, item, latest_revision.get(message.id)
+            )
+            latest_revision[message.id] = revision
+            import_run.appended_revisions += int(appended)
+            batch_messages.append(message)
+        self.session.flush()
+        for message, participant, item in new_sources:
+            self._source_children(conversation, message, participant, item)
+        self.session.flush()
+        self._responses_batch(conversation, batch_messages)
+        import_run.processed_messages = processed_ordinal
+        import_run.checkpoint = {
+            "processed_messages": processed_ordinal,
+            "last_external_id": items[-1].external_id,
+            "source_hash": import_run.source_hash,
+        }
+        self.session.commit()
 
     def _conversation(
         self,
@@ -190,6 +289,7 @@ class ImportService:
         if conversation is not None:
             return conversation
         conversation = Conversation(
+            id=new_id(),
             corpus_id=corpus.id,
             platform=platform,
             source_namespace=source_namespace,
@@ -200,16 +300,6 @@ class ImportService:
         self.session.flush()
         return conversation
 
-    def _parent_membership(self, parent: CorpusSnapshot | None) -> dict[str, MessageRevision]:
-        if parent is None:
-            return {}
-        rows = self.session.execute(
-            select(SnapshotMessageRevision.message_id, MessageRevision)
-            .join(MessageRevision, MessageRevision.id == SnapshotMessageRevision.revision_id)
-            .where(SnapshotMessageRevision.snapshot_id == parent.id)
-        )
-        return {message_id: revision for message_id, revision in rows}
-
     def _participant(
         self,
         corpus: Corpus,
@@ -218,6 +308,7 @@ class ImportService:
         external_id: str | None,
         display_name: str,
         cache: dict[str, Participant],
+        participant_sequence: list[int],
     ) -> tuple[Participant | None, bool]:
         if external_id is None and display_name == "Системное сообщение":
             return None, False
@@ -238,23 +329,17 @@ class ImportService:
                 raise RuntimeError("participant identity points to a missing participant")
             cache[identity_key] = participant
             return participant, False
-        participant_number = (
-            self.session.scalar(
-                select(func.count())
-                .select_from(Participant)
-                .where(Participant.corpus_id == corpus.id)
-            )
-            or 0
-        ) + 1
+        participant_sequence[0] += 1
         participant = Participant(
+            id=new_id(),
             corpus_id=corpus.id,
             display_name=display_name,
-            pseudonym=f"Участник {participant_number}",
+            pseudonym=f"Участник {participant_sequence[0]}",
         )
         self.session.add(participant)
-        self.session.flush()
         self.session.add(
             ParticipantIdentity(
+                id=new_id(),
                 participant_id=participant.id,
                 corpus_id=corpus.id,
                 platform=platform,
@@ -266,18 +351,11 @@ class ImportService:
         cache[identity_key] = participant
         return participant, True
 
-    def _message(
+    def _new_message(
         self, conversation: Conversation, participant: Participant | None, item: NormalizedMessage
-    ) -> tuple[Message, bool]:
-        existing = self.session.scalar(
-            select(Message).where(
-                Message.conversation_id == conversation.id,
-                Message.external_id == item.external_id,
-            )
-        )
-        if existing is not None:
-            return existing, False
-        message = Message(
+    ) -> Message:
+        return Message(
+            id=new_id(),
             conversation_id=conversation.id,
             external_id=item.external_id,
             sender_id=participant.id if participant else None,
@@ -291,22 +369,19 @@ class ImportService:
             source_tombstone=item.tombstone,
             raw_metadata=item.metadata,
         )
-        self.session.add(message)
-        self.session.flush()
-        return message, True
 
     def _revision(
-        self, corpus: Corpus, message: Message, item: NormalizedMessage
+        self,
+        corpus: Corpus,
+        message: Message,
+        item: NormalizedMessage,
+        latest: MessageRevision | None,
     ) -> tuple[MessageRevision, bool]:
         digest = text_hash(item.text)
-        latest = self.session.scalar(
-            select(MessageRevision)
-            .where(MessageRevision.message_id == message.id)
-            .order_by(MessageRevision.revision_number.desc())
-        )
         if latest is not None and latest.text_hash == digest:
             return latest, False
         revision = MessageRevision(
+            id=new_id(),
             message_id=message.id,
             revision_number=(latest.revision_number + 1) if latest else 1,
             text=item.text,
@@ -316,7 +391,6 @@ class ImportService:
             revision_kind="deleted" if item.tombstone else "edit" if latest else "original",
         )
         self.session.add(revision)
-        self.session.flush()
         return revision, True
 
     def _source_children(
@@ -328,6 +402,7 @@ class ImportService:
     ) -> None:
         self.session.add(
             InteractionEvent(
+                id=new_id(),
                 conversation_id=conversation.id,
                 message_id=message.id,
                 actor_id=participant.id if participant else None,
@@ -338,6 +413,7 @@ class ImportService:
         )
         self.session.add_all(
             AttachmentRef(
+                id=new_id(),
                 message_id=message.id,
                 path=attachment.path,
                 media_type=attachment.media_type,
@@ -347,75 +423,232 @@ class ImportService:
             for attachment in item.attachments
         )
 
-    def _responses(self, conversation: Conversation, imported_ids: set[str]) -> None:
-        if not imported_ids:
+    def _responses_batch(self, conversation: Conversation, batch_messages: list[Message]) -> None:
+        sources = [message for message in batch_messages if message.reply_to_external_id]
+        if not sources:
             return
-        messages = list(
-            self.session.scalars(select(Message).where(Message.conversation_id == conversation.id))
-        )
-        by_external = {message.external_id: message for message in messages}
-        existing = set(
-            self.session.execute(
-                select(
-                    ResponseRelation.source_message_id, ResponseRelation.target_message_id
-                ).where(ResponseRelation.source_message_id.in_(imported_ids))
+        target_ids = {message.reply_to_external_id for message in sources}
+        targets = {
+            message.external_id: message
+            for message in self.session.scalars(
+                select(Message).where(
+                    Message.conversation_id == conversation.id,
+                    Message.external_id.in_(target_ids),
+                )
+            )
+        }
+        existing_sources = set(
+            self.session.scalars(
+                select(ResponseRelation.source_message_id).where(
+                    ResponseRelation.source_message_id.in_([message.id for message in sources]),
+                    ResponseRelation.explicit.is_(True),
+                    ResponseRelation.relation_type == "REPLIES_TO",
+                )
             )
         )
-        for source in messages:
-            target = by_external.get(source.reply_to_external_id or "")
-            if source.id in imported_ids and target and (source.id, target.id) not in existing:
-                self.session.add(
-                    ResponseRelation(
-                        source_message_id=source.id,
-                        target_message_id=target.id,
-                        relation_type="REPLIES_TO",
-                        confidence=1.0,
-                        explicit=True,
-                    )
-                )
+        self.session.add_all(
+            ResponseRelation(
+                id=new_id(),
+                source_message_id=source.id,
+                target_message_id=targets[source.reply_to_external_id].id,
+                relation_type="REPLIES_TO",
+                confidence=1.0,
+                explicit=True,
+            )
+            for source in sources
+            if source.id not in existing_sources and source.reply_to_external_id in targets
+        )
 
-    def _segment(self, conversation: Conversation, imported_ids: set[str]) -> None:
-        existing = self.session.scalar(
+    def _segment_streaming(self, conversation: Conversation) -> None:
+        if self.session.scalar(
             select(ConversationSession.id).where(
                 ConversationSession.conversation_id == conversation.id
             )
-        )
-        if not imported_ids or existing:
-            return
-        messages = list(self.session.scalars(select(Message).where(Message.id.in_(imported_ids))))
-
-        def comparable(value: datetime) -> datetime:
-            return value if value.tzinfo else value.replace(tzinfo=UTC)
-
-        ordered = sorted(messages, key=lambda message: comparable(message.sent_at))
-        if not ordered:
+        ):
             return
         boundary = timedelta(hours=self.settings.default_session_gap_hours)
-        groups: list[list[Message]] = [[ordered[0]]]
-        for message in ordered[1:]:
-            if comparable(message.sent_at) - comparable(groups[-1][-1].sent_at) > boundary:
-                groups.append([message])
-            else:
-                groups[-1].append(message)
-        for group_index, group in enumerate(groups, start=1):
-            conversation_session = ConversationSession(
-                conversation_id=conversation.id,
-                segmentation_version=f"gap-{self.settings.default_session_gap_hours}h-v1",
-                start_at=group[0].sent_at,
-                end_at=group[-1].sent_at,
-                gap_hours=self.settings.default_session_gap_hours,
+        current_session: ConversationSession | None = None
+        current_episode: Episode | None = None
+        previous_at: datetime | None = None
+        ordinal = 0
+        group_index = 0
+        statement = (
+            select(Message)
+            .where(Message.conversation_id == conversation.id)
+            .order_by(Message.sent_at, Message.id)
+            .execution_options(yield_per=self.settings.import_batch_size)
+        )
+        for message in self.session.scalars(statement):
+            sent_at = self._aware(message.sent_at)
+            if previous_at is None or sent_at - previous_at > boundary:
+                group_index += 1
+                ordinal = 0
+                current_session = ConversationSession(
+                    id=new_id(),
+                    conversation_id=conversation.id,
+                    segmentation_version=f"gap-{self.settings.default_session_gap_hours}h-v1",
+                    start_at=message.sent_at,
+                    end_at=message.sent_at,
+                    gap_hours=self.settings.default_session_gap_hours,
+                )
+                current_episode = Episode(
+                    id=new_id(),
+                    session_id=current_session.id,
+                    title=f"Эпизод {group_index}",
+                    status="provisional",
+                    confidence=1.0,
+                )
+                self.session.add_all([current_session, current_episode])
+            if current_session is None or current_episode is None:
+                raise RuntimeError("segmentation state was not initialized")
+            current_session.end_at = message.sent_at
+            self.session.add(
+                EpisodeMessage(
+                    id=new_id(),
+                    episode_id=current_episode.id,
+                    message_id=message.id,
+                    ordinal=ordinal,
+                )
             )
-            self.session.add(conversation_session)
-            self.session.flush()
-            episode = Episode(
-                session_id=conversation_session.id,
-                title=f"Эпизод {group_index}",
-                status="provisional",
-                confidence=1.0,
+            ordinal += 1
+            previous_at = sent_at
+            if ordinal % self.settings.import_batch_size == 0:
+                self.session.flush()
+
+    def _finalize_snapshot(
+        self, import_run: ImportRun, corpus: Corpus, conversation: Conversation
+    ) -> None:
+        snapshot = CorpusSnapshot(
+            id=new_id(),
+            corpus_id=corpus.id,
+            source_hash=import_run.source_hash,
+            parent_snapshot_id=import_run.parent_snapshot_id,
+            manifest_hash="pending",
+            message_count=0,
+            label=f"{import_run.platform}:{import_run.original_name}",
+        )
+        self.session.add(snapshot)
+        self.session.flush()
+        parent = (
+            self.session.get(CorpusSnapshot, import_run.parent_snapshot_id)
+            if import_run.parent_snapshot_id
+            else None
+        )
+        if parent is not None:
+            statement = (
+                select(
+                    SnapshotMessageRevision.message_id,
+                    SnapshotMessageRevision.revision_id,
+                )
+                .join(Message, Message.id == SnapshotMessageRevision.message_id)
+                .where(
+                    SnapshotMessageRevision.snapshot_id == parent.id,
+                    Message.conversation_id != conversation.id,
+                )
+                .order_by(SnapshotMessageRevision.message_id)
+                .execution_options(yield_per=self.settings.import_batch_size)
             )
-            self.session.add(episode)
-            self.session.flush()
-            self.session.add_all(
-                EpisodeMessage(episode_id=episode.id, message_id=message.id, ordinal=ordinal)
-                for ordinal, message in enumerate(group)
+            self._copy_memberships(snapshot.id, self.session.execute(statement))
+        latest_number = (
+            select(
+                MessageRevision.message_id.label("message_id"),
+                func.max(MessageRevision.revision_number).label("revision_number"),
             )
+            .group_by(MessageRevision.message_id)
+            .subquery()
+        )
+        current_statement = (
+            select(Message.id, MessageRevision.id)
+            .join(latest_number, latest_number.c.message_id == Message.id)
+            .join(
+                MessageRevision,
+                (MessageRevision.message_id == latest_number.c.message_id)
+                & (MessageRevision.revision_number == latest_number.c.revision_number),
+            )
+            .where(Message.conversation_id == conversation.id)
+            .order_by(Message.id)
+            .execution_options(yield_per=self.settings.import_batch_size)
+        )
+        self._copy_memberships(snapshot.id, self.session.execute(current_statement))
+        self.session.flush()
+        digest = hashlib.sha256()
+        count = 0
+        manifest_rows = self.session.execute(
+            select(
+                SnapshotMessageRevision.message_id,
+                SnapshotMessageRevision.revision_id,
+            )
+            .where(SnapshotMessageRevision.snapshot_id == snapshot.id)
+            .order_by(SnapshotMessageRevision.message_id)
+            .execution_options(yield_per=self.settings.import_batch_size)
+        )
+        for message_id, revision_id in manifest_rows:
+            digest.update(json.dumps([message_id, revision_id], separators=(",", ":")).encode())
+            count += 1
+        snapshot.manifest_hash = digest.hexdigest()
+        snapshot.message_count = count
+        artifact = SourceArtifact(
+            id=new_id(),
+            snapshot_id=snapshot.id,
+            sha256=import_run.source_hash,
+            original_name=import_run.original_name,
+            media_type=import_run.media_type,
+            size_bytes=import_run.size_bytes,
+            object_path=import_run.object_path,
+        )
+        self.session.add(artifact)
+        import_run.snapshot_id = snapshot.id
+        import_run.status = "completed"
+        import_run.completed_at = datetime.now(UTC)
+        import_run.error = None
+        import_run.checkpoint = {
+            **import_run.checkpoint,
+            "snapshot_id": snapshot.id,
+            "manifest_hash": snapshot.manifest_hash,
+        }
+
+    def _copy_memberships(self, snapshot_id: str, rows) -> None:
+        pending = 0
+        for message_id, revision_id in rows:
+            self.session.add(
+                SnapshotMessageRevision(
+                    id=new_id(),
+                    snapshot_id=snapshot_id,
+                    message_id=message_id,
+                    revision_id=revision_id,
+                )
+            )
+            pending += 1
+            if pending >= self.settings.import_batch_size:
+                self.session.flush()
+                pending = 0
+
+    def _result(self, import_run: ImportRun) -> ImportResult:
+        if not import_run.snapshot_id:
+            raise RuntimeError("import has not produced a snapshot")
+        artifact = self.session.scalar(
+            select(SourceArtifact).where(SourceArtifact.snapshot_id == import_run.snapshot_id)
+        )
+        if artifact is None:
+            raise RuntimeError("import snapshot is missing its source artifact")
+        return ImportResult(
+            import_run_id=import_run.id,
+            corpus_id=import_run.corpus_id,
+            snapshot_id=import_run.snapshot_id,
+            artifact_id=artifact.id,
+            source_hash=import_run.source_hash,
+            imported_messages=import_run.processed_messages,
+            imported_participants=import_run.imported_participants,
+            warnings=import_run.warnings,
+        )
+
+    def _latest_snapshot(self, corpus_id: str) -> CorpusSnapshot | None:
+        return self.session.scalar(
+            select(CorpusSnapshot)
+            .where(CorpusSnapshot.corpus_id == corpus_id)
+            .order_by(CorpusSnapshot.created_at.desc(), CorpusSnapshot.id.desc())
+        )
+
+    @staticmethod
+    def _aware(value: datetime) -> datetime:
+        return value if value.tzinfo else value.replace(tzinfo=UTC)

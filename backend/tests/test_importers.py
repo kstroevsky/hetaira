@@ -8,11 +8,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from prometheus_observatory.importers import ImportService
+from prometheus_observatory.importers.service import ImportInterrupted
 from prometheus_observatory.models import (
     Conversation,
     ConversationSession,
     Corpus,
     CorpusSnapshot,
+    ImportRun,
     Message,
     MessageRevision,
     Participant,
@@ -196,3 +198,37 @@ def test_two_conversations_in_one_namespace_share_participant_identity(
         service.import_object(corpus, stored, "shared-export.json", "application/json", "telegram")
     assert db_session.scalar(select(func.count()).select_from(Conversation)) == 2
     assert db_session.scalar(select(func.count()).select_from(Participant)) == 1
+
+
+def test_interrupted_import_resumes_from_durable_checkpoint_without_duplicates(
+    db_session: Session, tmp_path: Path
+) -> None:
+    corpus = make_corpus(db_session)
+    with (FIXTURES / "telegram.json").open("rb") as source:
+        stored = ContentAddressedStore(tmp_path / "objects").put_stream(source)
+    with pytest.raises(ImportInterrupted) as interruption:
+        ImportService(db_session).import_object(
+            corpus,
+            stored,
+            "telegram.json",
+            "application/json",
+            "telegram",
+            interrupt_after=1,
+        )
+    run_id = interruption.value.run_id
+    interrupted = db_session.get(ImportRun, run_id)
+    assert interrupted is not None
+    assert interrupted.status == "interrupted"
+    assert interrupted.processed_messages == 1
+    assert interrupted.snapshot_id is None
+    assert db_session.scalar(select(func.count()).select_from(Message)) == 1
+
+    db_session.expire_all()
+    result = ImportService(db_session).resume_import(run_id)
+    completed = db_session.get(ImportRun, run_id)
+    assert completed is not None and completed.status == "completed"
+    assert completed.processed_messages == 2
+    assert result.imported_messages == 2
+    assert db_session.scalar(select(func.count()).select_from(Message)) == 2
+    assert db_session.scalar(select(func.count()).select_from(MessageRevision)) == 2
+    assert db_session.scalar(select(func.count()).select_from(SnapshotMessageRevision)) == 2
