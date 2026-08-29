@@ -48,7 +48,13 @@ class WorkspaceService:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def messages(self, corpus_id: str, snapshot_id: str | None = None) -> list[MessageListItem]:
+    def messages(
+        self,
+        corpus_id: str,
+        snapshot_id: str | None = None,
+        *,
+        limit: int = 200,
+    ) -> list[MessageListItem]:
         snapshot = self._snapshot(corpus_id, snapshot_id)
         rows = self.session.execute(
             select(Message, MessageRevision, Participant)
@@ -57,19 +63,25 @@ class WorkspaceService:
             .outerjoin(Participant, Participant.id == Message.sender_id)
             .where(SnapshotMessageRevision.snapshot_id == snapshot.id)
             .order_by(Message.sent_at)
+            .limit(min(max(limit, 1), 500))
         ).all()
+        external_ids = [message.external_id for message, _revision, _participant in rows]
         reply_counts = Counter(
-            reply_to
-            for reply_to in self.session.scalars(
-                select(Message.reply_to_external_id).where(
-                    Message.id.in_(
-                        select(SnapshotMessageRevision.message_id).where(
-                            SnapshotMessageRevision.snapshot_id == snapshot.id
-                        )
-                    ),
-                    Message.reply_to_external_id.is_not(None),
+            {
+                reply_to: count
+                for reply_to, count in self.session.execute(
+                    select(Message.reply_to_external_id, func.count())
+                    .where(
+                        Message.id.in_(
+                            select(SnapshotMessageRevision.message_id).where(
+                                SnapshotMessageRevision.snapshot_id == snapshot.id
+                            )
+                        ),
+                        Message.reply_to_external_id.in_(external_ids),
+                    )
+                    .group_by(Message.reply_to_external_id)
                 )
-            )
+            }
         )
         return [
             MessageListItem(
@@ -258,7 +270,8 @@ class WorkspaceService:
             microscope=self.microscope(selected.id),
             run=RunRead.model_validate(run) if run else None,
             overview={
-                "message_count": len(messages),
+                "message_count": snapshot.message_count,
+                "loaded_message_count": len(messages),
                 "participant_count": participant_count or 0,
                 "validated_language": corpus.is_validated_language,
                 "epistemic_levels": ["L0", "L1", "L2", "L3", "L4"],
