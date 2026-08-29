@@ -4,11 +4,13 @@ import {
   Database,
   FlaskConical,
   HelpCircle,
+  LayoutDashboard,
   Play,
   Tags,
 } from 'lucide-react'
 
 const items = [
+  { label: 'Обзор', icon: LayoutDashboard },
   { label: 'Корпусы', icon: Database },
   { label: 'Разметка', icon: Tags },
   { label: 'Измерения', icon: BarChart3 },

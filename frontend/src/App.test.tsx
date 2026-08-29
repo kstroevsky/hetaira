@@ -35,10 +35,31 @@ const workspace = {
   },
 }
 
+const observatory = {
+  artifact_id: 'artifact-1', content_hash: 'a'.repeat(64), run_id: 'run-1',
+  schema: 'hetaira.observatory-overview.v1', analysis_version: 'observatory-overview@1.0.0',
+  corpus: { id: 'c1', name: 'Архив команды', language: 'ru', privacy_policy: 'LOCAL_ONLY' },
+  snapshot: { id: 'snapshot-12345678', manifest_hash: 'manifestabcdef123456', message_count: 1, created_at: '2025-01-01T00:00:00Z' },
+  dimensions: {
+    source: { sessions_8h: 1, participants: 1 },
+    temporal: { monthly_activity: [{ month: '2025-01', messages: 1 }], busiest_month: { month: '2025-01', messages: 1 }, change_points: [], change_method: 'test', partial_month_warning: true },
+    participation: { normalized_entropy: 1, gini: 0, top_1_share: 1, top_10_share: 1, top_participants: [{ participant_id: 'p1', participant: 'Участник 1', messages: 1, share: 1 }], interpretation_guardrail: 'Не влияние.' },
+    reply_structure: { resolved_reply_relations: 0, target_resolution_rate: 0, median_response_minutes: 0, p90_response_minutes: 0 },
+    network: { participants: 1, directed_dyads: 0, interaction_communities: [], top_nodes: [], interpretation_guardrail: 'Не власть.' },
+    roles: { participant_profiles: [] },
+    lexical_evolution: { method: 'test', themes: [], emerging_terms: [], declining_terms: [], guardrail: 'Навигация.' },
+    health_primitives: { participation_balance: 1, reply_target_resolution: 0, dyadic_reciprocity: 0, median_response_minutes: 0, missing_dimensions: [] },
+    data_quality: {},
+  },
+  findings: [], measurement_result_ids: {}, epistemic_status: 'descriptive_provisional', generated_at: '2025-01-01T00:00:00Z',
+}
+
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
-    const data = url.includes('/annotation-sets')
+    const data = url.includes('/observatory')
+      ? observatory
+      : url.includes('/annotation-sets')
       ? []
       : url.includes('/api/corpora')
       ? [workspace.corpus]
@@ -60,6 +81,8 @@ describe('Prometheus workbench', () => {
         <App />
       </QueryClientProvider>,
     )
+    expect(await screen.findByLabelText('Многомерный обзор корпуса')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Корпусы' }))
     expect(await screen.findByText('Микроскоп анализа')).toBeInTheDocument()
     expect(screen.getByText('Цепочка доказательств')).toBeInTheDocument()
     expect(screen.getByText('LOCAL ONLY')).toBeInTheDocument()

@@ -133,3 +133,127 @@ export type AnnotationUnit = {
   text_hash: string
   annotations: UnitAnnotation[]
 }
+
+export type ObservatoryFinding = {
+  id: string
+  dimension: string
+  claim: string
+  epistemic_level: string
+  causal_status: string
+  supporting_evidence: Array<{ object_type: string; object_id: string }>
+  alternative_explanations: string[]
+}
+
+export type ObservatoryOverview = {
+  artifact_id: string
+  content_hash: string
+  run_id: string
+  schema: string
+  analysis_version: string
+  corpus: {
+    id: string
+    name: string
+    language: string
+    privacy_policy: string
+  }
+  snapshot: {
+    id: string
+    manifest_hash: string
+    message_count: number
+    created_at: string
+  }
+  dimensions: {
+    source: Record<string, unknown>
+    temporal: {
+      monthly_activity: Array<{ month: string; messages: number }>
+      busiest_month: { month: string; messages: number } | null
+      change_points: Array<{
+        month: string
+        previous_messages: number
+        messages: number
+        robust_score: number
+        direction: string
+      }>
+      change_method: string
+      partial_month_warning: boolean
+    }
+    participation: {
+      normalized_entropy: number
+      gini: number
+      top_1_share: number
+      top_10_share: number
+      top_participants: Array<{
+        participant_id: string
+        participant: string
+        messages: number
+        share: number
+      }>
+      interpretation_guardrail: string
+    }
+    reply_structure: Record<string, number | null>
+    network: {
+      participants: number
+      directed_dyads: number
+      interaction_communities: Array<{
+        community_id: number
+        size: number
+        members: string[]
+      }>
+      top_nodes: Array<{
+        participant_id: string
+        participant: string
+        pagerank: number
+        betweenness: number
+        degree: number
+        messages: number
+        replies_sent: number
+        replies_received: number
+      }>
+      interpretation_guardrail: string
+    }
+    roles: {
+      participant_profiles: Array<{
+        participant_id: string
+        participant: string
+        profiles: string[]
+        messages: number
+        mean_message_characters: number
+        question_rate: number
+        reply_rate: number
+        betweenness: number
+        status: string
+      }>
+    }
+    lexical_evolution: {
+      method: string
+      themes: Array<{
+        theme_id: number
+        terms: string[]
+        document_frequency: number
+      }>
+      emerging_terms: Array<{
+        term: string
+        early_rate: number
+        late_rate: number
+        log_rate_ratio: number
+        document_frequency: number
+        sample_message_id: string | null
+      }>
+      declining_terms: Array<{
+        term: string
+        early_rate: number
+        late_rate: number
+        log_rate_ratio: number
+        document_frequency: number
+        sample_message_id: string | null
+      }>
+      guardrail: string
+    }
+    health_primitives: Record<string, unknown>
+    data_quality: Record<string, unknown>
+  }
+  findings: ObservatoryFinding[]
+  measurement_result_ids: Record<string, string>
+  epistemic_status: string
+  generated_at: string
+}

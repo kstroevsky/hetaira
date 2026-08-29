@@ -8,13 +8,14 @@ import { AnnotationWorkbench } from './components/AnnotationWorkbench'
 import { EvidenceChain } from './components/EvidenceChain'
 import { ImportDialog } from './components/ImportDialog'
 import { MessageTimeline } from './components/MessageTimeline'
+import { ObservatoryOverview } from './components/ObservatoryOverview'
 import { RunStrip } from './components/RunStrip'
 import { Sidebar } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
 
 export default function App() {
   const queryClient = useQueryClient()
-  const [activeNav, setActiveNav] = useState('Корпусы')
+  const [activeNav, setActiveNav] = useState('Обзор')
   const [requestedCorpusId, setRequestedCorpusId] = useState('')
   const [selectedMessageId, setSelectedMessageId] = useState('')
   const [query, setQuery] = useState('')
@@ -105,7 +106,15 @@ export default function App() {
           Снимок {workspaceQuery.data.overview.snapshot_id.slice(0, 8)} · manifest{' '}
           {workspaceQuery.data.overview.snapshot_manifest_hash.slice(0, 12)}…
         </div>
-        {activeNav === 'Разметка' ? (
+        {activeNav === 'Обзор' ? (
+          <ObservatoryOverview
+            corpusId={corpus.id}
+            onOpenEvidence={(messageId) => {
+              setSelectedMessageId(messageId)
+              setActiveNav('Корпусы')
+            }}
+          />
+        ) : activeNav === 'Разметка' ? (
           <AnnotationWorkbench
             corpusId={corpus.id}
             snapshotId={workspaceQuery.data.overview.snapshot_id}

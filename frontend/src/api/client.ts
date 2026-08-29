@@ -1,4 +1,11 @@
-import type { AnnotationSet, AnnotationUnit, Corpus, Microscope, Workspace } from './types'
+import type {
+  AnnotationSet,
+  AnnotationUnit,
+  Corpus,
+  Microscope,
+  ObservatoryOverview,
+  Workspace,
+} from './types'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
@@ -97,4 +104,12 @@ export function reviewManualAnnotation(
 
 export function freezeAnnotationSet(annotationSetId: string): Promise<AnnotationSet> {
   return request(`/api/annotation-sets/${annotationSetId}/freeze`, { method: 'POST' })
+}
+
+export function fetchObservatory(corpusId: string): Promise<ObservatoryOverview> {
+  return request(`/api/corpora/${corpusId}/observatory`)
+}
+
+export function buildObservatory(corpusId: string): Promise<ObservatoryOverview> {
+  return request(`/api/corpora/${corpusId}/observatory`, { method: 'POST' })
 }
