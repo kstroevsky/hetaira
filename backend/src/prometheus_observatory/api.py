@@ -9,6 +9,7 @@ from .analyzer import DeterministicAnalyzer
 from .annotation_workbench import AnnotationWorkbenchService
 from .config import get_settings
 from .database import get_session
+from .evaluation import evaluate_frozen_set
 from .importers import ImportService
 from .models import (
     AnalysisRun,
@@ -339,6 +340,20 @@ def freeze_annotation_set(
 def export_annotation_set(annotation_set_id: str, session: Session = Depends(get_session)) -> dict:
     try:
         return AnnotationWorkbenchService(session).export(annotation_set_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@router.get("/annotation-sets/{annotation_set_id}/evaluations/{analysis_run_id}")
+def evaluate_analysis_run(
+    annotation_set_id: str,
+    analysis_run_id: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        return evaluate_frozen_set(session, annotation_set_id, analysis_run_id)
     except LookupError as error:
         raise HTTPException(404, str(error)) from error
     except ValueError as error:

@@ -6,8 +6,10 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from prometheus_observatory.analyzer import DeterministicAnalyzer
 from prometheus_observatory.annotation_workbench import AnnotationWorkbenchService
 from prometheus_observatory.codebooks import register_codebooks
+from prometheus_observatory.evaluation import evaluate_frozen_set
 from prometheus_observatory.importers import ImportService
 from prometheus_observatory.models import (
     Annotation,
@@ -125,3 +127,57 @@ def test_manual_annotation_rejects_out_of_bounds_evidence(
             spans=[{"start_codepoint": 0, "end_codepoint": len(unit["text"]) + 1}],
             annotator="annotator-a",
         )
+
+
+def test_frozen_gold_set_evaluates_versioned_analysis_run(
+    db_session: Session, tmp_path: Path
+) -> None:
+    register_codebooks(db_session)
+    corpus = Corpus(name="Evaluation pilot", language="ru", privacy_policy="LOCAL_ONLY")
+    db_session.add(corpus)
+    db_session.commit()
+    with FIXTURE.open("rb") as source:
+        stored = ContentAddressedStore(tmp_path / "objects").put_stream(source)
+    imported = ImportService(db_session).import_object(
+        corpus, stored, FIXTURE.name, "application/json", "telegram"
+    )
+    run = DeterministicAnalyzer(db_session).analyze(corpus.id)
+    service = AnnotationWorkbenchService(db_session)
+    created = service.create_set(
+        corpus_id=corpus.id,
+        snapshot_id=imported.snapshot_id,
+        name="gold-ru-evaluation-v0",
+        target_size=1,
+        codebook_key="foundational-conversation-ru",
+        codebook_version="0.1.0",
+    )
+    unit = service.list_units(created.id, limit=1)[0]
+    machine = next(
+        annotation
+        for annotation in db_session.scalars(
+            select(Annotation).where(
+                Annotation.run_id == run.id,
+                Annotation.kind == "dialogue_act",
+            )
+        )
+        if annotation.evidence[0]["revision_id"] == unit["revision_id"]
+    )
+    evidence = machine.evidence[0]
+    human = service.add_annotation(
+        unit["id"],
+        kind="dialogue_act",
+        value={"label": machine.value["label"]},
+        spans=[
+            {
+                "start_codepoint": evidence["start_codepoint"],
+                "end_codepoint": evidence["end_codepoint"],
+            }
+        ],
+        annotator="annotator-a",
+    )
+    service.review(human.id, decision="confirmed", reviewer="reviewer-b")
+    service.freeze(created.id)
+    report = evaluate_frozen_set(db_session, created.id, run.id)
+    assert report["annotation_set_manifest_hash"]
+    assert report["by_kind"]["dialogue_act"]["true_positive"] >= 1
+    assert report["span_exact_match"] == 1
