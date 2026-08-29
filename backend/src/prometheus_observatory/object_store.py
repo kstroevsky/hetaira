@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import tarfile
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,3 +42,37 @@ class ContentAddressedStore:
         else:
             os.replace(temporary, destination)
         return StoredObject(sha256=sha256, size_bytes=size, path=destination)
+
+    def put_directory(self, directory: Path) -> StoredObject:
+        if not directory.is_dir():
+            raise ValueError("directory artifact source must be a directory")
+        with tempfile.NamedTemporaryFile(
+            dir=self.root, prefix=".directory-", suffix=".tar", delete=False
+        ) as temporary_handle:
+            temporary = Path(temporary_handle.name)
+        try:
+            with tarfile.open(temporary, mode="w") as archive:
+                for source in sorted(path for path in directory.rglob("*") if path.is_file()):
+                    if source.is_symlink():
+                        continue
+                    relative = source.relative_to(directory)
+
+                    def deterministic(info: tarfile.TarInfo) -> tarfile.TarInfo:
+                        info.uid = 0
+                        info.gid = 0
+                        info.uname = ""
+                        info.gname = ""
+                        info.mtime = 0
+                        return info
+
+                    archive.add(
+                        source,
+                        arcname=str(relative),
+                        recursive=False,
+                        filter=deterministic,
+                    )
+            with temporary.open("rb") as stream:
+                return self.put_stream(stream)
+        finally:
+            if temporary.exists():
+                temporary.unlink()

@@ -33,10 +33,12 @@ from ..schemas import ImportResult
 from ..text import text_hash
 from .base import ConversationParser, NormalizedMessage
 from .telegram import TelegramParser
+from .telegram_html import TelegramHTMLParser
 from .whatsapp import WhatsAppParser
 
 PARSERS: dict[str, ConversationParser] = {
     "telegram": TelegramParser(),
+    "telegram_html": TelegramHTMLParser(),
     "whatsapp": WhatsAppParser(),
 }
 

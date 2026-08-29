@@ -67,8 +67,8 @@ def import_corpus(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
 ) -> ImportResult:
-    if platform not in {"telegram", "whatsapp"}:
-        raise HTTPException(400, "platform must be telegram or whatsapp")
+    if platform not in {"telegram", "telegram_html", "whatsapp"}:
+        raise HTTPException(400, "platform must be telegram, telegram_html, or whatsapp")
     corpus = session.get(Corpus, corpus_id)
     if corpus is None:
         raise HTTPException(404, "corpus not found")
