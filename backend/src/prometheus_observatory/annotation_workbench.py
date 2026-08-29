@@ -267,6 +267,29 @@ class AnnotationWorkbenchService:
         unit = self.session.get(AnnotationUnit, link.unit_id)
         if unit is not None:
             unit.status = "reviewed" if decision == "confirmed" else decision
+        self.session.flush()
+        total_units = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(AnnotationUnit)
+                .where(AnnotationUnit.annotation_set_id == annotation_set.id)
+            )
+            or 0
+        )
+        reviewed_units = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(AnnotationUnit)
+                .where(
+                    AnnotationUnit.annotation_set_id == annotation_set.id,
+                    AnnotationUnit.status == "reviewed",
+                )
+            )
+            or 0
+        )
+        run = self.session.get(AnalysisRun, annotation_set.analysis_run_id)
+        if run is not None:
+            run.progress = reviewed_units / total_units if total_units else 0
         self.session.commit()
         return review
 

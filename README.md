@@ -51,6 +51,23 @@ Generate a scale fixture without keeping the full message list in memory:
 .venv/bin/python scripts/generate_scale_fixture.py --count 1000000 --output scale-1m.json
 ```
 
+Run the interruption/restart and bounded-memory gate:
+
+```bash
+PROMETHEUS_DATABASE_URL=postgresql+psycopg://prometheus:prometheus@localhost:5432/prometheus \
+  .venv/bin/python scripts/run_scale_gate.py \
+  --count 1000000 --fixture /tmp/hetaira-scale-1m.json \
+  --object-root /tmp/hetaira-scale-objects
+```
+
+Create and inspect the Russian gold pilot (also available through the **Разметка** UI):
+
+```bash
+.venv/bin/python scripts/gold_ru_pilot.py create --target-size 200
+.venv/bin/python scripts/gold_ru_pilot.py status <annotation-set-id>
+.venv/bin/python scripts/gold_ru_pilot.py export <annotation-set-id> --output gold-ru-v0.json
+```
+
 ## Source map
 
 - `backend/src/prometheus_observatory/models.py` — persistence ontology and immutability enforcement.
