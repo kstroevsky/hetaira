@@ -69,6 +69,51 @@ class AnnotationRead(ORMModel):
     calibrated_confidence: float | None
 
 
+class AnnotationSetCreate(BaseModel):
+    corpus_id: str
+    snapshot_id: str
+    name: str = Field(min_length=1, max_length=240)
+    target_size: int = Field(default=200, ge=1, le=1200)
+    codebook_key: str = "foundational-conversation-ru"
+    codebook_version: str = "0.1.0"
+    seed: str = "gold-ru-v0"
+
+
+class AnnotationSetRead(ORMModel):
+    id: str
+    corpus_id: str
+    snapshot_id: str
+    name: str
+    language: str
+    codebook_key: str
+    codebook_version: str
+    codebook_artifact_hash: str
+    status: str
+    target_size: int
+    sampling_spec: dict[str, Any]
+    manifest_hash: str | None
+    frozen_at: datetime | None
+    created_at: datetime
+
+
+class EvidenceSpanCreate(BaseModel):
+    start_codepoint: int = Field(ge=0)
+    end_codepoint: int = Field(gt=0)
+
+
+class ManualAnnotationCreate(BaseModel):
+    kind: str = Field(min_length=1, max_length=80)
+    value: dict[str, Any]
+    spans: list[EvidenceSpanCreate] = Field(min_length=1)
+    annotator: str = Field(min_length=1, max_length=240)
+    supersedes_annotation_id: str | None = None
+
+
+class AnnotationReviewCreate(BaseModel):
+    decision: str
+    reviewer: str = Field(min_length=1, max_length=240)
+
+
 class MessageListItem(BaseModel):
     id: str
     external_id: str

@@ -378,6 +378,74 @@ class Annotation(Base, Timestamped):
     superseded_by: Mapped[str | None] = mapped_column(ForeignKey("annotations.id"), index=True)
 
 
+class AnnotationSet(Base, Timestamped):
+    __tablename__ = "annotation_sets"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    corpus_id: Mapped[str] = mapped_column(ForeignKey("corpora.id"), index=True)
+    snapshot_id: Mapped[str] = mapped_column(ForeignKey("corpus_snapshots.id"), index=True)
+    analysis_run_id: Mapped[str] = mapped_column(ForeignKey("analysis_runs.id"), index=True)
+    name: Mapped[str] = mapped_column(String(240))
+    language: Mapped[str] = mapped_column(String(16), default="ru")
+    codebook_key: Mapped[str] = mapped_column(String(120))
+    codebook_version: Mapped[str] = mapped_column(String(40))
+    codebook_artifact_hash: Mapped[str] = mapped_column(
+        ForeignKey("codebook_artifacts.content_hash"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
+    target_size: Mapped[int] = mapped_column(Integer)
+    sampling_spec: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    manifest_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    frozen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        UniqueConstraint("snapshot_id", "name", name="uq_annotation_set_snapshot_name"),
+    )
+
+
+class AnnotationUnit(Base, Timestamped):
+    __tablename__ = "annotation_units"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    annotation_set_id: Mapped[str] = mapped_column(
+        ForeignKey("annotation_sets.id", ondelete="CASCADE"), index=True
+    )
+    object_type: Mapped[str] = mapped_column(String(40), default="message")
+    object_id: Mapped[str] = mapped_column(String(36), index=True)
+    revision_id: Mapped[str] = mapped_column(ForeignKey("message_revisions.id"), index=True)
+    group_id: Mapped[str] = mapped_column(String(36), index=True)
+    ordinal: Mapped[int] = mapped_column(Integer)
+    split: Mapped[str] = mapped_column(String(16), index=True)
+    strata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    __table_args__ = (
+        UniqueConstraint(
+            "annotation_set_id",
+            "object_type",
+            "object_id",
+            "revision_id",
+            name="uq_annotation_unit_object",
+        ),
+    )
+
+
+class AnnotationSetAnnotation(Base, Timestamped):
+    __tablename__ = "annotation_set_annotations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    annotation_set_id: Mapped[str] = mapped_column(
+        ForeignKey("annotation_sets.id", ondelete="CASCADE"), index=True
+    )
+    unit_id: Mapped[str] = mapped_column(
+        ForeignKey("annotation_units.id", ondelete="CASCADE"), index=True
+    )
+    annotation_id: Mapped[str] = mapped_column(
+        ForeignKey("annotations.id", ondelete="CASCADE"), index=True
+    )
+    role: Mapped[str] = mapped_column(String(24), default="human")
+    __table_args__ = (
+        UniqueConstraint(
+            "annotation_set_id", "unit_id", "annotation_id", name="uq_set_unit_annotation"
+        ),
+    )
+
+
 class AnnotationReview(Base, Timestamped):
     __tablename__ = "annotation_reviews"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)

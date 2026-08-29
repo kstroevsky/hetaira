@@ -6,19 +6,31 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .analyzer import DeterministicAnalyzer
+from .annotation_workbench import AnnotationWorkbenchService
 from .config import get_settings
 from .database import get_session
 from .importers import ImportService
-from .models import AnalysisRun, CodebookArtifact, CodebookRelease, Corpus, ImportRun
+from .models import (
+    AnalysisRun,
+    AnnotationSet,
+    CodebookArtifact,
+    CodebookRelease,
+    Corpus,
+    ImportRun,
+)
 from .object_store import ContentAddressedStore
 from .ontology import PrivacyPolicy
 from .research_planner import AnalysisPlan, BoundedPlannerRuntime
 from .retrieval import HybridRetriever
 from .schemas import (
+    AnnotationReviewCreate,
+    AnnotationSetCreate,
+    AnnotationSetRead,
     CorpusCreate,
     CorpusRead,
     ImportResult,
     ImportRunRead,
+    ManualAnnotationCreate,
     MessageListItem,
     MicroscopeResponse,
     RunRead,
@@ -181,6 +193,156 @@ def list_codebooks(session: Session = Depends(get_session)) -> list[dict]:
         }
         for release, artifact in releases
     ]
+
+
+@router.get("/codebooks/{codebook_key}/compare")
+def compare_codebooks(
+    codebook_key: str,
+    left: str,
+    right: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    releases = session.execute(
+        select(CodebookRelease, CodebookArtifact)
+        .join(CodebookArtifact, CodebookArtifact.content_hash == CodebookRelease.artifact_hash)
+        .where(
+            CodebookRelease.codebook_key == codebook_key,
+            CodebookRelease.semantic_version.in_([left, right]),
+        )
+    ).all()
+    by_version = {
+        release.semantic_version: (release, yaml.safe_load(artifact.content))
+        for release, artifact in releases
+    }
+    if left not in by_version or right not in by_version:
+        raise HTTPException(404, "one or both codebook releases were not found")
+    left_release, left_content = by_version[left]
+    right_release, right_content = by_version[right]
+    left_labels = left_content.get("labels", {})
+    right_labels = right_content.get("labels", {})
+    dimensions = sorted(set(left_labels) | set(right_labels))
+    changes = []
+    for dimension in dimensions:
+        before = left_labels.get(dimension, {})
+        after = right_labels.get(dimension, {})
+        changes.append(
+            {
+                "dimension": dimension,
+                "added": sorted(set(after) - set(before)),
+                "removed": sorted(set(before) - set(after)),
+                "changed": sorted(
+                    label for label in set(before) & set(after) if before[label] != after[label]
+                ),
+            }
+        )
+    return {
+        "codebook_key": codebook_key,
+        "left": {"version": left, "artifact_hash": left_release.artifact_hash},
+        "right": {"version": right, "artifact_hash": right_release.artifact_hash},
+        "changes": changes,
+    }
+
+
+@router.post("/annotation-sets", response_model=AnnotationSetRead, status_code=201)
+def create_annotation_set(
+    payload: AnnotationSetCreate, session: Session = Depends(get_session)
+) -> AnnotationSet:
+    try:
+        return AnnotationWorkbenchService(session).create_set(**payload.model_dump())
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/annotation-sets", response_model=list[AnnotationSetRead])
+def list_annotation_sets(
+    corpus_id: str, session: Session = Depends(get_session)
+) -> list[AnnotationSet]:
+    return list(
+        session.scalars(
+            select(AnnotationSet)
+            .where(AnnotationSet.corpus_id == corpus_id)
+            .order_by(AnnotationSet.created_at.desc())
+        )
+    )
+
+
+@router.get("/annotation-sets/{annotation_set_id}/units")
+def list_annotation_units(
+    annotation_set_id: str,
+    after_ordinal: int = -1,
+    limit: int = 50,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        units = AnnotationWorkbenchService(session).list_units(
+            annotation_set_id, after_ordinal=after_ordinal, limit=limit
+        )
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    return {"items": units, "next_ordinal": units[-1]["ordinal"] if units else None}
+
+
+@router.post("/annotation-units/{unit_id}/annotations")
+def add_manual_annotation(
+    unit_id: str,
+    payload: ManualAnnotationCreate,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        annotation = AnnotationWorkbenchService(session).add_annotation(
+            unit_id,
+            kind=payload.kind,
+            value=payload.value,
+            spans=[span.model_dump() for span in payload.spans],
+            annotator=payload.annotator,
+            supersedes_annotation_id=payload.supersedes_annotation_id,
+        )
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    return {"id": annotation.id, "status": annotation.status}
+
+
+@router.post("/annotations/{annotation_id}/reviews")
+def review_annotation(
+    annotation_id: str,
+    payload: AnnotationReviewCreate,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        review = AnnotationWorkbenchService(session).review(
+            annotation_id, decision=payload.decision, reviewer=payload.reviewer
+        )
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    return {"id": review.id, "decision": review.decision}
+
+
+@router.post("/annotation-sets/{annotation_set_id}/freeze", response_model=AnnotationSetRead)
+def freeze_annotation_set(
+    annotation_set_id: str, session: Session = Depends(get_session)
+) -> AnnotationSet:
+    try:
+        return AnnotationWorkbenchService(session).freeze(annotation_set_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@router.get("/annotation-sets/{annotation_set_id}/export")
+def export_annotation_set(annotation_set_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        return AnnotationWorkbenchService(session).export(annotation_set_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
 
 
 @router.post("/privacy/preview")
