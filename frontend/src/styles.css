@@ -652,11 +652,102 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   font-weight: 800;
 }
 
+.annotation-empty {
+  min-height: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 40px;
+  text-align: center;
+  background: var(--slate-100);
+}
+.annotation-empty > svg { width: 42px; height: 42px; color: var(--teal); }
+.annotation-empty h1 { margin: 0; font-size: 22px; }
+.annotation-empty p { max-width: 620px; margin: 0; color: var(--slate-700); line-height: 1.55; }
+.annotation-empty button, .annotation-form button, .freeze-button {
+  border: 1px solid var(--navy-800);
+  border-radius: 4px;
+  background: var(--navy-900);
+  color: #fff;
+  padding: 9px 14px;
+  cursor: pointer;
+}
+.annotation-workbench { min-height: 0; display: grid; grid-template-rows: 62px minmax(0, 1fr); }
+.annotation-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--slate-200);
+  background: #fff;
+}
+.annotation-toolbar > div:first-child { display: grid; gap: 3px; }
+.annotation-toolbar span { color: var(--slate-700); font-size: 11px; }
+.annotation-toolbar select { min-width: 210px; border: 1px solid var(--slate-300); padding: 6px; }
+.annotation-stats { display: flex; gap: 13px; flex: 1; }
+.annotation-stats span { padding-right: 13px; border-right: 1px solid var(--slate-200); }
+.annotation-stats strong { color: var(--ink); font-size: 13px; }
+.freeze-button { display: inline-flex; align-items: center; gap: 7px; }
+.freeze-button svg { width: 17px; }
+.freeze-button:disabled, .annotation-form button:disabled { opacity: .5; cursor: not-allowed; }
+.annotation-banner { padding: 8px 16px; background: #fff5d8; color: #765310; }
+.annotation-banner.error, .annotation-error { color: var(--red); }
+.annotation-layout {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 300px minmax(470px, 1fr) 330px;
+  background: var(--slate-100);
+}
+.unit-queue, .annotation-editor, .review-panel { min-width: 0; min-height: 0; background: #fff; border-right: 1px solid var(--slate-200); }
+.unit-queue, .review-panel { display: grid; grid-template-rows: 48px minmax(0, 1fr); }
+.annotation-panel-title { display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid var(--slate-200); font-weight: 750; }
+.unit-list { overflow-y: auto; padding: 8px; }
+.unit-card { width: 100%; display: grid; gap: 6px; padding: 10px; border: 1px solid transparent; border-bottom-color: var(--slate-200); background: #fff; text-align: left; cursor: pointer; }
+.unit-card:hover { background: var(--slate-100); }
+.unit-card.selected { border-color: var(--blue); background: #edf5ff; }
+.unit-card span { color: var(--slate-500); font-size: 11px; }
+.unit-card strong { font-size: 12px; line-height: 1.35; }
+.unit-status { width: max-content; border-radius: 12px; padding: 2px 7px; background: var(--slate-100); color: var(--slate-700); font: normal 10px ui-monospace, monospace; }
+.unit-status.reviewed { background: #e2f7ef; color: #12664d; }
+.unit-status.disputed { background: #fff0d2; color: #8a5900; }
+.annotation-editor { overflow-y: auto; padding-bottom: 24px; }
+.annotation-editor .annotation-panel-title { height: 48px; }
+.unit-metadata { display: flex; gap: 12px; padding: 12px 18px 0; color: var(--slate-500); font: 11px ui-monospace, monospace; }
+.annotation-editor blockquote { margin: 12px 18px; border: 1px solid var(--slate-200); border-left: 4px solid var(--violet); padding: 18px; line-height: 1.6; background: #fcfcfe; }
+.span-controls, .annotation-form { display: flex; align-items: end; gap: 10px; margin: 12px 18px; }
+.span-controls label, .annotation-form label, .reviewer-field { display: grid; gap: 5px; color: var(--slate-700); font-size: 11px; }
+.span-controls input { width: 90px; }
+.span-controls input, .annotation-form input, .annotation-form select, .reviewer-field input { border: 1px solid var(--slate-300); padding: 7px; background: #fff; }
+.span-controls button { border: 1px solid var(--slate-300); background: #fff; padding: 7px 10px; cursor: pointer; }
+.span-preview { margin: 12px 18px; padding: 12px; border: 1px dashed var(--teal); background: #effafa; font-size: 13px; }
+.annotation-form { flex-wrap: wrap; border-top: 1px solid var(--slate-200); padding-top: 14px; }
+.annotation-form label:nth-child(2) { flex: 1; }
+.annotation-form label:nth-child(2) input { min-width: 180px; }
+.review-panel { grid-template-rows: 48px auto minmax(0, 1fr) auto; overflow: hidden; }
+.reviewer-field { padding: 12px 14px; border-bottom: 1px solid var(--slate-200); }
+.review-card { margin: 10px 12px 0; border: 1px solid var(--slate-200); padding: 10px; }
+.review-card header { display: flex; justify-content: space-between; }
+.review-card header span { color: var(--slate-500); font-size: 10px; }
+.review-card pre { white-space: pre-wrap; font-size: 11px; color: var(--slate-700); }
+.review-actions { display: flex; gap: 6px; }
+.review-actions button { width: 34px; height: 30px; border: 1px solid var(--slate-300); background: #fff; cursor: pointer; }
+.review-actions svg { width: 15px; }
+.review-decision { padding: 6px; background: var(--slate-100); font-size: 11px; }
+.review-decision.confirmed { background: #e2f7ef; color: #12664d; }
+.review-decision.disputed { background: #fff0d2; color: #8a5900; }
+.review-decision.rejected { background: #ffeaed; color: var(--red); }
+.review-empty { padding: 12px; color: var(--slate-500); }
+.freeze-note { display: flex; gap: 7px; align-items: center; padding: 12px; border-top: 1px solid var(--slate-200); color: var(--slate-700); font-size: 11px; }
+.freeze-note svg { width: 16px; }
+
 @media (max-width: 1250px) {
   :root { --sidebar-width: 76px; }
   .brand span, .nav-item span, .sidebar-bottom span { display: none; }
   .brand { justify-content: center; padding: 0; }
   .nav-item { justify-content: center; }
   .workspace-grid { grid-template-columns: 270px minmax(430px, 1fr) 280px; }
+  .annotation-layout { grid-template-columns: 250px minmax(430px, 1fr) 280px; }
+  .annotation-stats span:nth-child(n+4) { display: none; }
   .import-button { font-size: 0; }
 }

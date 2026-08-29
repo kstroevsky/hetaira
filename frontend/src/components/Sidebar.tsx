@@ -31,6 +31,7 @@ export function Sidebar({ active, onChange }: SidebarProps) {
       <nav>
         {items.map(({ label, icon: Icon }) => (
           <button
+            aria-label={label}
             className={active === label ? 'nav-item active' : 'nav-item'}
             key={label}
             onClick={() => onChange(label)}

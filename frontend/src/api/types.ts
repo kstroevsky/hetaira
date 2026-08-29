@@ -85,3 +85,51 @@ export type Workspace = {
     snapshot_manifest_hash: string
   }
 }
+
+export type AnnotationSet = {
+  id: string
+  corpus_id: string
+  snapshot_id: string
+  name: string
+  language: string
+  codebook_key: string
+  codebook_version: string
+  codebook_artifact_hash: string
+  status: string
+  target_size: number
+  sampling_spec: Record<string, unknown>
+  manifest_hash: string | null
+  frozen_at: string | null
+  created_at: string
+}
+
+export type UnitAnnotation = {
+  id: string
+  kind: string
+  value: Record<string, unknown>
+  evidence: Array<Record<string, unknown>>
+  role: string
+  superseded_by: string | null
+  review: {
+    decision: string
+    reviewer: string
+    reviewed_at: string
+  } | null
+}
+
+export type AnnotationUnit = {
+  id: string
+  ordinal: number
+  object_type: string
+  object_id: string
+  revision_id: string
+  group_id: string
+  split: 'train' | 'development' | 'test'
+  strata: Record<string, unknown>
+  status: string
+  sender_id: string | null
+  sent_at: string
+  text: string
+  text_hash: string
+  annotations: UnitAnnotation[]
+}

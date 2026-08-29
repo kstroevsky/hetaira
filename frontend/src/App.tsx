@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { fetchCorpora, fetchMicroscope, fetchWorkspace, uploadExport } from './api/client'
 import type { Microscope } from './api/types'
 import { AnalysisMicroscope } from './components/AnalysisMicroscope'
+import { AnnotationWorkbench } from './components/AnnotationWorkbench'
 import { EvidenceChain } from './components/EvidenceChain'
 import { ImportDialog } from './components/ImportDialog'
 import { MessageTimeline } from './components/MessageTimeline'
@@ -104,15 +105,22 @@ export default function App() {
           Снимок {workspaceQuery.data.overview.snapshot_id.slice(0, 8)} · manifest{' '}
           {workspaceQuery.data.overview.snapshot_manifest_hash.slice(0, 12)}…
         </div>
-        <main className="workspace-grid">
-          <MessageTimeline
-            messages={messages}
-            selectedId={effectiveMessageId}
-            onSelect={setSelectedMessageId}
+        {activeNav === 'Разметка' ? (
+          <AnnotationWorkbench
+            corpusId={corpus.id}
+            snapshotId={workspaceQuery.data.overview.snapshot_id}
           />
-          <AnalysisMicroscope microscope={microscope} />
-          <EvidenceChain microscope={microscope} />
-        </main>
+        ) : (
+          <main className="workspace-grid">
+            <MessageTimeline
+              messages={messages}
+              selectedId={effectiveMessageId}
+              onSelect={setSelectedMessageId}
+            />
+            <AnalysisMicroscope microscope={microscope} />
+            <EvidenceChain microscope={microscope} />
+          </main>
+        )}
         <RunStrip
           run={workspaceQuery.data.run}
           messageCount={workspaceQuery.data.overview.message_count}

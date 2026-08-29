@@ -1,4 +1,4 @@
-import type { Corpus, Microscope, Workspace } from './types'
+import type { AnnotationSet, AnnotationUnit, Corpus, Microscope, Workspace } from './types'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
@@ -33,4 +33,68 @@ export function uploadExport(
     method: 'POST',
     body: data,
   })
+}
+
+export function fetchAnnotationSets(corpusId: string): Promise<AnnotationSet[]> {
+  return request(`/api/corpora/${corpusId}/annotation-sets`)
+}
+
+export function createGoldPilot(
+  corpusId: string,
+  snapshotId: string,
+  targetSize = 200,
+): Promise<AnnotationSet> {
+  return request('/api/annotation-sets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      corpus_id: corpusId,
+      snapshot_id: snapshotId,
+      name: 'gold-ru-v0',
+      target_size: targetSize,
+      codebook_key: 'foundational-conversation-ru',
+      codebook_version: '0.1.0',
+      seed: 'gold-ru-v0',
+    }),
+  })
+}
+
+export async function fetchAnnotationUnits(annotationSetId: string): Promise<AnnotationUnit[]> {
+  const result = await request<{ items: AnnotationUnit[] }>(
+    `/api/annotation-sets/${annotationSetId}/units?limit=200`,
+  )
+  return result.items
+}
+
+export function createManualAnnotation(
+  unitId: string,
+  payload: {
+    kind: string
+    value: Record<string, unknown>
+    spans: Array<{ start_codepoint: number; end_codepoint: number }>
+    annotator: string
+    supersedes_annotation_id?: string
+  },
+): Promise<{ id: string; status: string }> {
+  return request(`/api/annotation-units/${unitId}/annotations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function reviewManualAnnotation(
+  annotationId: string,
+  decision: 'confirmed' | 'disputed' | 'rejected',
+  reviewer: string,
+): Promise<{ id: string; decision: string }> {
+  return request(`/api/annotations/${annotationId}/reviews`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision, reviewer }),
+  })
+}
+
+export function freezeAnnotationSet(annotationSetId: string): Promise<AnnotationSet> {
+  return request(`/api/annotation-sets/${annotationSetId}/freeze`, { method: 'POST' })
 }

@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from './App'
@@ -38,7 +38,9 @@ const workspace = {
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
-    const data = url.includes('/api/corpora')
+    const data = url.includes('/annotation-sets')
+      ? []
+      : url.includes('/api/corpora')
       ? [workspace.corpus]
       : url.includes('/microscope')
         ? workspace.microscope
@@ -62,5 +64,17 @@ describe('Prometheus workbench', () => {
     expect(screen.getByText('Цепочка доказательств')).toBeInTheDocument()
     expect(screen.getByText('LOCAL ONLY')).toBeInTheDocument()
     expect(screen.getByLabelText('Активный снимок корпуса')).toHaveTextContent('snapshot')
+  })
+
+  it('opens the Russian annotation desk from primary navigation', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <App />
+      </QueryClientProvider>,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Разметка' }))
+    expect(await screen.findByText('Русский пилот разметки ещё не создан')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Создать gold-ru-v0' })).toBeEnabled()
   })
 })
