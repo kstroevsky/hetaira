@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
@@ -63,6 +64,9 @@ class AnnotationWorkbenchService:
             )
         )
         if existing is not None:
+            if existing.status == "draft":
+                self._rebalance_splits(existing)
+                self.session.commit()
             return existing
         release, artifact_hash = release_identity(self.session, codebook_key, codebook_version)
         if "@" not in release:
@@ -95,7 +99,7 @@ class AnnotationWorkbenchService:
             status="draft",
             target_size=target_size,
             sampling_spec={
-                "strategy": "deterministic-stratified-uuid-v1",
+                "strategy": "deterministic-stratified-group-balanced-v2",
                 "seed": seed,
                 "target_size": target_size,
                 "split_group": "episode_or_conversation",
@@ -116,11 +120,13 @@ class AnnotationWorkbenchService:
                 revision_id=revision.id,
                 group_id=group_id,
                 ordinal=ordinal,
-                split=self._split(seed, group_id),
+                split="pending",
                 strata=self._strata(message, revision),
                 status="pending",
             )
             self.session.add(annotation_unit)
+        self.session.flush()
+        self._rebalance_splits(annotation_set)
         self.session.commit()
         return annotation_set
 
@@ -492,14 +498,48 @@ class AnnotationWorkbenchService:
             )
         return output
 
-    @staticmethod
-    def _split(seed: str, group_id: str) -> str:
-        bucket = int(hashlib.sha256(f"{seed}:{group_id}".encode()).hexdigest()[:8], 16) % 10
-        if bucket < 6:
-            return "train"
-        if bucket < 8:
-            return "development"
-        return "test"
+    def _rebalance_splits(self, annotation_set: AnnotationSet) -> None:
+        units = list(
+            self.session.scalars(
+                select(AnnotationUnit).where(AnnotationUnit.annotation_set_id == annotation_set.id)
+            )
+        )
+        grouped: dict[str, list[AnnotationUnit]] = defaultdict(list)
+        for unit in units:
+            grouped[unit.group_id].append(unit)
+        total = len(units)
+        targets = {
+            "train": round(total * 0.6),
+            "development": round(total * 0.2),
+            "test": total - round(total * 0.6) - round(total * 0.2),
+        }
+        assigned = {split: 0 for split in targets}
+        seed = str(annotation_set.sampling_spec.get("seed", "gold-ru-v0"))
+        groups = sorted(
+            grouped.items(),
+            key=lambda item: (
+                -len(item[1]),
+                hashlib.sha256(f"{seed}:{item[0]}".encode()).hexdigest(),
+            ),
+        )
+        for _group_id, members in groups:
+            size = len(members)
+            destination = min(
+                targets,
+                key=lambda split: (
+                    (assigned[split] + size - targets[split]) ** 2
+                    - (assigned[split] - targets[split]) ** 2,
+                    split,
+                ),
+            )
+            for unit in members:
+                unit.split = destination
+            assigned[destination] += size
+        annotation_set.sampling_spec = {
+            **annotation_set.sampling_spec,
+            "strategy": "deterministic-stratified-group-balanced-v2",
+            "actual_split_counts": assigned,
+        }
 
     @staticmethod
     def _is_difficult(message: Message, revision: MessageRevision) -> bool:
