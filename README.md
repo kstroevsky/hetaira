@@ -8,6 +8,7 @@ The current Foundation release implements the first complete vertical slice:
 - immutable messages and revisions, Unicode span hashes, sessions, episodes, participants, replies, and attachments;
 - Russian codebook-backed deterministic dialogue acts, propositions, stance, epistemics, grounding, and argument cues;
 - plugin-validated participation and explicit-reply reciprocity measurements;
+- a persisted multidimensional Overview covering temporal, participation, reply, network, role, lexical, and health-primitive dimensions;
 - L0 source → L1 observation → L2 measurement → L3 interpretation evidence chains;
 - traceable Russian lexical retrieval and a bounded research-plan contract;
 - provider-neutral local/API model routing with corpus-derived egress policy, budgets, JSON Schema validation, and audits;
@@ -75,6 +76,7 @@ Create and inspect the Russian gold pilot (also available through the **Разм
 - `backend/src/prometheus_observatory/importers/` — Telegram and WhatsApp adapters.
 - `backend/src/prometheus_observatory/analyzer.py` — deterministic Russian foundation pipeline.
 - `backend/src/prometheus_observatory/retrieval.py` — snapshot-scoped traceable retrieval.
+- `backend/src/prometheus_observatory/observatory.py` — persisted multidimensional descriptive analysis.
 - `frontend/src/` — live analysis workbench.
 - `docs/` — scientific specification, annotation manual, architecture, and validation rules.
 
