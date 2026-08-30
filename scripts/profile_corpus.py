@@ -60,12 +60,12 @@ def profile(corpus_id: str, terms: list[str]) -> dict:
         ).one()
         participant_rows = session.execute(
             select(
-                Participant.pseudonym,
+                Participant.display_name,
                 func.count().label("messages"),
             )
             .select_from(base)
             .join(Participant, Participant.id == base.c.sender_id)
-            .group_by(Participant.id, Participant.pseudonym)
+            .group_by(Participant.id, Participant.display_name)
             .order_by(func.count().desc())
         ).all()
         participant_total = sum(row.messages for row in participant_rows)
@@ -79,7 +79,7 @@ def profile(corpus_id: str, terms: list[str]) -> dict:
         )
         top_participants = [
             {
-                "participant": row.pseudonym,
+                "participant": row.display_name,
                 "messages": row.messages,
                 "share": row.messages / participant_total if participant_total else 0,
             }

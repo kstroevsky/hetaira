@@ -47,6 +47,12 @@ def test_observatory_persists_multidimensional_snapshot_and_reuses_fingerprint(
     }
     assert first.payload["epistemic_status"] == "descriptive_provisional"
     assert first.payload["dimensions"]["health_primitives"]["aggregate_score"] is None
+    displayed_names = {
+        item["participant"]
+        for item in first.payload["dimensions"]["participation"]["top_participants"]
+    }
+    assert displayed_names <= {"Анна", "Борис"}
+    assert not any(name.startswith("Участник ") for name in displayed_names)
     assert db_session.scalar(select(func.count()).select_from(AnalyticalArtifact)) == 1
     assert db_session.scalar(select(func.count()).select_from(MeasurementResult)) == 9
     assert db_session.scalar(select(func.count()).select_from(Finding)) >= 2

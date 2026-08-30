@@ -38,7 +38,7 @@ from .models import (
 )
 from .ontology import CausalStatus, EpistemicLevel, RunStatus
 
-ANALYSIS_VERSION = "observatory-overview@1.0.1"
+ANALYSIS_VERSION = "observatory-overview@1.0.2"
 WORD_PATTERN = re.compile(r"[а-яё]{4,}", re.IGNORECASE)
 RUSSIAN_STOPWORDS = {
     "более",
@@ -359,7 +359,7 @@ class ObservatoryBuilder:
         self.session.flush()
 
         participant_names = {
-            participant.id: participant.pseudonym
+            participant.id: participant.display_name
             for participant in self.session.scalars(
                 select(Participant).where(Participant.corpus_id == corpus.id)
             )
