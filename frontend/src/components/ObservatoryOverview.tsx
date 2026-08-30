@@ -312,10 +312,6 @@ function OverviewContent({
               </div>
             ))}
           </div>
-          <div className="term-movement">
-            <div><strong>Чаще во второй половине <MetricTip title="Чаще во второй половине">Временной диапазон корпуса делится пополам между первой и последней датой. Здесь показаны слова, доля сообщений с которыми выше после этой временной середины. Это не означает рост убеждения или важности темы.</MetricTip></strong>{dimensions.lexical_evolution.emerging_terms.slice(0, 8).map((term) => <span key={term.term}>{term.term}</span>)}</div>
-            <div><strong>Чаще в первой половине <MetricTip title="Чаще в первой половине">Временной диапазон корпуса делится пополам между первой и последней датой. Здесь показаны слова, доля сообщений с которыми выше до этой временной середины. Сравниваются доли сообщений, а не абсолютные количества.</MetricTip></strong>{dimensions.lexical_evolution.declining_terms.slice(0, 8).map((term) => <span key={term.term}>{term.term}</span>)}</div>
-          </div>
           <p className="guardrail"><AlertTriangle /> {dimensions.lexical_evolution.guardrail}</p>
         </article>
 

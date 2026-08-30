@@ -38,7 +38,7 @@ from .models import (
 )
 from .ontology import CausalStatus, EpistemicLevel, RunStatus
 
-ANALYSIS_VERSION = "observatory-overview@1.0.3"
+ANALYSIS_VERSION = "observatory-overview@1.1.0"
 WORD_PATTERN = re.compile(r"[а-яё]{4,}", re.IGNORECASE)
 RUSSIAN_STOPWORDS = {
     "более",
@@ -299,23 +299,17 @@ class ObservatoryBuilder:
             .join(SnapshotMessageRevision, SnapshotMessageRevision.message_id == Message.id)
             .where(SnapshotMessageRevision.snapshot_id == snapshot.id)
         ).one()
-        midpoint = first_at + (last_at - first_at) / 2 if first_at and last_at else None
         monthly: Counter[str] = Counter()
         participant_messages: Counter[str] = Counter()
         participant_characters: Counter[str] = Counter()
         participant_questions: Counter[str] = Counter()
         participant_sample: dict[str, str] = {}
         token_documents: Counter[str] = Counter()
-        early_documents: Counter[str] = Counter()
-        late_documents: Counter[str] = Counter()
-        token_sample: dict[str, str] = {}
         message_count = 0
         service_events = 0
         reply_marked = 0
         empty_messages = 0
         total_characters = 0
-        early_count = 0
-        late_count = 0
         statement = (
             select(
                 Message.id,
@@ -346,14 +340,6 @@ class ObservatoryBuilder:
                 participant_sample.setdefault(row.sender_id, row.id)
             unique_tokens = set(tokens(row.text))
             token_documents.update(unique_tokens)
-            for token in unique_tokens:
-                token_sample.setdefault(token, row.id)
-            if midpoint is not None and row.sent_at < midpoint:
-                early_documents.update(unique_tokens)
-                early_count += 1
-            else:
-                late_documents.update(unique_tokens)
-                late_count += 1
         task.progress = 0.25
         task.checkpoint = {"stage": "source_and_lexical_counts", "messages": message_count}
         self.session.flush()
@@ -439,11 +425,6 @@ class ObservatoryBuilder:
         lexical = self._lexical(
             snapshot,
             token_documents,
-            early_documents,
-            late_documents,
-            early_count,
-            late_count,
-            token_sample,
         )
         sessions = (
             self.session.scalar(
@@ -525,10 +506,6 @@ class ObservatoryBuilder:
                 ),
                 "busiest_month_message": self._message_in_month(
                     snapshot.id, temporal["busiest_month"]
-                ),
-                "emerging_term_message": token_sample.get(
-                    lexical["emerging_terms"][0]["term"] if lexical["emerging_terms"] else "",
-                    "",
                 ),
             },
         )
@@ -719,11 +696,6 @@ class ObservatoryBuilder:
         self,
         snapshot: CorpusSnapshot,
         documents: Counter[str],
-        early: Counter[str],
-        late: Counter[str],
-        early_count: int,
-        late_count: int,
-        samples: dict[str, str],
     ) -> dict[str, Any]:
         vocabulary = [term for term, count in documents.most_common(80) if count >= 5]
         vocabulary_set = set(vocabulary)
@@ -763,30 +735,11 @@ class ObservatoryBuilder:
                             "document_frequency": sum(documents[term] for term in ranked),
                         }
                     )
-        evolution = []
-        for term in vocabulary:
-            early_rate = early[term] / early_count if early_count else 0
-            late_rate = late[term] / late_count if late_count else 0
-            score = math.log((late_rate + 1e-6) / (early_rate + 1e-6))
-            evolution.append(
-                {
-                    "term": term,
-                    "early_rate": early_rate,
-                    "late_rate": late_rate,
-                    "log_rate_ratio": score,
-                    "document_frequency": documents[term],
-                    "sample_message_id": samples.get(term),
-                }
-            )
         return {
             "method": "russian_lexical_document_frequency_and_cooccurrence_v1",
             "themes": sorted(themes, key=lambda item: item["document_frequency"], reverse=True)[
                 :10
             ],
-            "emerging_terms": sorted(
-                evolution, key=lambda item: item["log_rate_ratio"], reverse=True
-            )[:12],
-            "declining_terms": sorted(evolution, key=lambda item: item["log_rate_ratio"])[:12],
             "guardrail": (
                 "Лексические кластеры — средство навигации, а не валидированные семантические темы."
             ),
@@ -887,20 +840,6 @@ class ObservatoryBuilder:
                 None,
             )
         )
-        lexical = payloads["lexical_evolution"]
-        if lexical["emerging_terms"]:
-            term = lexical["emerging_terms"][0]
-            candidates.append(
-                (
-                    "lexical_evolution",
-                    f"Термин «{term['term']}» чаще встречается во второй половине корпуса.",
-                    [
-                        "Это лексическое изменение, не доказательство изменения убеждений "
-                        "или распространённости темы."
-                    ],
-                    evidence.get("emerging_term_message"),
-                )
-            )
         output = []
         for dimension, claim, alternatives, message_id in candidates:
             supporting = [{"object_type": "message", "object_id": message_id}] if message_id else []

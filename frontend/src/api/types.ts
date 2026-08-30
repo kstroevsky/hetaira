@@ -231,22 +231,6 @@ export type ObservatoryOverview = {
         terms: string[]
         document_frequency: number
       }>
-      emerging_terms: Array<{
-        term: string
-        early_rate: number
-        late_rate: number
-        log_rate_ratio: number
-        document_frequency: number
-        sample_message_id: string | null
-      }>
-      declining_terms: Array<{
-        term: string
-        early_rate: number
-        late_rate: number
-        log_rate_ratio: number
-        document_frequency: number
-        sample_message_id: string | null
-      }>
       guardrail: string
     }
     health_primitives: Record<string, unknown>

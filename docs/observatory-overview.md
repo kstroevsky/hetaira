@@ -36,7 +36,7 @@ Provisional profiles combine message volume, question rate, reply rate, attentio
 
 ### Lexical evolution
 
-Russian tokens are counted by message-level document frequency. Frequent terms are connected by within-message co-occurrence and grouped into navigation clusters. Early/late rate ratios surface changing terminology. These are lexical navigation aids, not validated semantic topics, beliefs, or topic prevalence estimates.
+Russian tokens are counted by message-level document frequency. Frequent terms are connected by within-message co-occurrence and grouped into navigation clusters. These are lexical navigation aids, not validated semantic topics, beliefs, or topic prevalence estimates. Arbitrary first/second-half comparisons are deliberately excluded.
 
 ### Conversation-health primitives
 

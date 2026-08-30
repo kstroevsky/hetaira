@@ -47,7 +47,7 @@ const observatory = {
     reply_structure: { resolved_reply_relations: 0, target_resolution_rate: 0, median_response_minutes: 0, p90_response_minutes: 0 },
     network: { participants: 1, directed_dyads: 0, interaction_communities: [], top_nodes: [], interpretation_guardrail: 'Не власть.' },
     roles: { participant_profiles: [] },
-    lexical_evolution: { method: 'test', themes: [], emerging_terms: [], declining_terms: [], guardrail: 'Навигация.' },
+    lexical_evolution: { method: 'test', themes: [], guardrail: 'Навигация.' },
     health_primitives: { participation_balance: 1, reply_target_resolution: 0, dyadic_reciprocity: 0, median_response_minutes: 0, missing_dimensions: [] },
     data_quality: {},
   },
@@ -84,8 +84,7 @@ describe('Prometheus workbench', () => {
     expect(await screen.findByLabelText('Многомерный обзор корпуса')).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('Что означает: Сообщения'))
     expect(screen.getByText(/Число сообщений и системных событий/)).toBeVisible()
-    fireEvent.click(screen.getByLabelText('Что означает: Чаще в первой половине'))
-    expect(screen.getByText(/до этой временной середины/)).toBeVisible()
+    expect(screen.queryByText('Чаще в первой половине')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Корпусы' }))
     expect(await screen.findByText('Микроскоп анализа')).toBeInTheDocument()
     expect(screen.getByText('Цепочка доказательств')).toBeInTheDocument()
