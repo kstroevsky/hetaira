@@ -38,7 +38,7 @@ from .models import (
 )
 from .ontology import CausalStatus, EpistemicLevel, RunStatus
 
-ANALYSIS_VERSION = "observatory-overview@1.0.2"
+ANALYSIS_VERSION = "observatory-overview@1.0.3"
 WORD_PATTERN = re.compile(r"[а-яё]{4,}", re.IGNORECASE)
 RUSSIAN_STOPWORDS = {
     "более",
@@ -589,7 +589,9 @@ class ObservatoryBuilder:
             "top_participants": ranked,
             "top_1_share": ranked[0]["share"] if ranked else 0,
             "top_10_share": sum(item["share"] for item in ranked[:10]),
-            "interpretation_guardrail": "Message share is not influence or power.",
+            "interpretation_guardrail": (
+                "Доля сообщений не является мерой влияния, знания или власти."
+            ),
         }
 
     @staticmethod
@@ -668,7 +670,8 @@ class ObservatoryBuilder:
                 for participant_id in top_nodes
             ],
             "interpretation_guardrail": (
-                "Interaction centrality is not intellectual influence, persuasion, or power."
+                "Центральность взаимодействия не является интеллектуальным влиянием, "
+                "убеждением или властью."
             ),
         }
         between_threshold = percentile(list(between_by_id.values()), 0.75) or 0
@@ -785,7 +788,7 @@ class ObservatoryBuilder:
             )[:12],
             "declining_terms": sorted(evolution, key=lambda item: item["log_rate_ratio"])[:12],
             "guardrail": (
-                "Lexical co-occurrence themes are navigation aids, not validated semantic topics."
+                "Лексические кластеры — средство навигации, а не валидированные семантические темы."
             ),
         }
 
