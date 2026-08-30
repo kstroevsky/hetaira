@@ -5,6 +5,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
+  CircleHelp,
   GitBranch,
   Network,
   RefreshCw,
@@ -24,15 +25,60 @@ type ObservatoryOverviewProps = {
 const number = new Intl.NumberFormat('ru-RU')
 const compact = new Intl.NumberFormat('ru-RU', { notation: 'compact', maximumFractionDigits: 1 })
 const percent = new Intl.NumberFormat('ru-RU', { style: 'percent', maximumFractionDigits: 1 })
+const CHART_WIDTH = 820
+const CHART_HEIGHT = 210
+const CHART_PADDING = { left: 46, right: 12, top: 16, bottom: 34 }
+const roleTranslations: Record<string, string> = {
+  'broker-like': 'структурный посредник',
+  'high-volume contributor': 'активный автор',
+  'response-oriented': 'ориентирован на ответы',
+  'attention hub': 'центр внимания',
+  'occasional contributor': 'эпизодический участник',
+}
+const missingDimensionTranslations: Record<string, string> = {
+  semantic_responsivity: 'семантическая отзывчивость',
+  grounding: 'общее понимание',
+  repair: 'исправление непонимания',
+  constructiveness: 'конструктивность',
+  goal_progress: 'прогресс к цели разговора',
+}
 
 function numeric(value: unknown): number {
   return typeof value === 'number' ? value : 0
 }
 
+function MetricTip({ title, children }: { title: string; children: string }) {
+  return (
+    <details className="metric-tip">
+      <summary aria-label={`Что означает: ${title}`} title={`Что означает: ${title}`}>
+        <CircleHelp aria-hidden="true" />
+      </summary>
+      <div role="note"><strong>{title}</strong><p>{children}</p></div>
+    </details>
+  )
+}
+
+function PanelTitle({
+  kicker,
+  title,
+  tip,
+}: {
+  kicker: string
+  title: string
+  tip: string
+}) {
+  return (
+    <div>
+      <span className="panel-kicker">{kicker}</span>
+      <div className="panel-title-row"><h2>{title}</h2><MetricTip title={title}>{tip}</MetricTip></div>
+    </div>
+  )
+}
+
 function ActivityChart({ data }: { data: Array<{ month: string; messages: number }> }) {
-  const width = 820
-  const height = 210
-  const padding = { left: 46, right: 12, top: 16, bottom: 34 }
+  const width = CHART_WIDTH
+  const height = CHART_HEIGHT
+  const padding = CHART_PADDING
   const innerWidth = width - padding.left - padding.right
   const innerHeight = height - padding.top - padding.bottom
   const maximum = Math.max(...data.map((item) => item.messages), 1)
@@ -82,16 +128,18 @@ function KpiCard({
   label,
   value,
   note,
+  tip,
 }: {
   icon: typeof Activity
   label: string
   value: string
   note: string
+  tip: string
 }) {
   return (
     <article className="observatory-kpi">
       <Icon aria-hidden="true" />
-      <span>{label}</span>
+      <span className="kpi-label">{label}<MetricTip title={label}>{tip}</MetricTip></span>
       <strong>{value}</strong>
       <small>{note}</small>
     </article>
@@ -168,17 +216,17 @@ function OverviewContent({
       </header>
 
       <section className="observatory-kpis" aria-label="Ключевые показатели">
-        <KpiCard icon={Activity} label="Сообщения" value={number.format(overview.snapshot.message_count)} note={`${numeric(source.sessions_8h)} сессий по границе 8ч`} />
-        <KpiCard icon={Users} label="Участники" value={number.format(numeric(source.participants))} note={`баланс ${percent.format(dimensions.participation.normalized_entropy)}`} />
-        <KpiCard icon={GitBranch} label="Разрешённые ответы" value={number.format(numeric(reply.resolved_reply_relations))} note={`${percent.format(numeric(reply.target_resolution_rate))} известных целей`} />
-        <KpiCard icon={Network} label="Направленные диады" value={number.format(dimensions.network.directed_dyads)} note={`${dimensions.network.interaction_communities.length} сообществ взаимодействия`} />
-        <KpiCard icon={SearchCheck} label="Медиана ответа" value={`${Math.round(numeric(reply.median_response_minutes))} мин`} note={`p90 ${Math.round(numeric(reply.p90_response_minutes))} мин`} />
+        <KpiCard icon={Activity} label="Сообщения" value={number.format(overview.snapshot.message_count)} note={`${numeric(source.sessions_8h)} сессий по границе 8ч`} tip="Число сообщений и системных событий в выбранной неизменяемой ревизии корпуса. Сессия начинается после паузы более восьми часов." />
+        <KpiCard icon={Users} label="Участники" value={number.format(numeric(source.participants))} note={`баланс ${percent.format(dimensions.participation.normalized_entropy)}`} tip="Количество уникальных отправителей. Баланс — нормированная энтропия Шеннона: 100% означает равномерный объём сообщений, а не равное влияние." />
+        <KpiCard icon={GitBranch} label="Разрешённые ответы" value={number.format(numeric(reply.resolved_reply_relations))} note={`${percent.format(numeric(reply.target_resolution_rate))} известных целей`} tip="Явные reply-ссылки, для которых исходное сообщение присутствует в экспорте. Отсутствующие цели остаются пропусками и не восстанавливаются догадкой." />
+        <KpiCard icon={Network} label="Направленные диады" value={number.format(dimensions.network.directed_dyads)} note={`${dimensions.network.interaction_communities.length} сообществ взаимодействия`} tip="Число уникальных направленных пар «кто кому отвечал». A→B и B→A — разные диады. Это структура взаимодействия, не коалиции позиций." />
+        <KpiCard icon={SearchCheck} label="Медиана ответа" value={`${Math.round(numeric(reply.median_response_minutes))} мин`} note={`p90 ${Math.round(numeric(reply.p90_response_minutes))} мин`} tip="Медианное время от сообщения-цели до явного ответа. p90 — время, быстрее которого пришли 90% валидных ответов; отрицательные и более 30 дней исключены." />
       </section>
 
       <section className="observatory-grid primary">
         <article className="observatory-panel activity-panel">
           <header>
-            <div><span className="panel-kicker">Движение</span><h2>Активность во времени</h2></div>
+            <PanelTitle kicker="Движение" title="Активность во времени" tip="Количество сообщений по календарным месяцам. Маркеры изменения — необычно большие логарифмические скачки относительно медианного абсолютного отклонения; это не объяснение причины скачка." />
             <span>{dimensions.temporal.change_method}</span>
           </header>
           <ActivityChart data={dimensions.temporal.monthly_activity} />
@@ -194,7 +242,7 @@ function OverviewContent({
         </article>
 
         <article className="observatory-panel finding-panel">
-          <header><div><span className="panel-kicker">L2</span><h2>Наблюдаемые выводы</h2></div></header>
+          <header><PanelTitle kicker="L2" title="Наблюдаемые выводы" tip="Автоматически сформированные описательные утверждения из сохранённых измерений. Они не являются причинными выводами и всегда показывают альтернативное объяснение." /></header>
           <div className="finding-feed">
             {overview.findings.map((finding) => (
               <article key={finding.id}>
@@ -214,7 +262,7 @@ function OverviewContent({
 
       <section className="observatory-grid secondary">
         <article className="observatory-panel participation-panel">
-          <header><div><span className="panel-kicker">Структура участия</span><h2>Кто создаёт объём</h2></div><span>Gini {dimensions.participation.gini.toFixed(2)}</span></header>
+          <header><PanelTitle kicker="Структура участия" title="Кто создаёт объём" tip="Доля сообщений каждого реального отправителя. Gini=0 означает полностью равномерный объём, значение ближе к 1 — концентрацию; это не измерение влияния или качества вклада." /><span className="header-metric">Gini {dimensions.participation.gini.toFixed(2)}<MetricTip title="Gini">Коэффициент концентрации объёма сообщений: 0 — одинаковые доли, ближе к 1 — большая часть сообщений сосредоточена у немногих участников.</MetricTip></span></header>
           <div className="rank-bars">
             {dimensions.participation.top_participants.slice(0, 10).map((participant) => (
               <div key={participant.participant_id}>
@@ -228,7 +276,7 @@ function OverviewContent({
         </article>
 
         <article className="observatory-panel network-panel">
-          <header><div><span className="panel-kicker">Interaction graph</span><h2>Центральность и сообщества</h2></div></header>
+          <header><PanelTitle kicker="Interaction graph" title="Центральность и сообщества" tip="Граф строится только из явных ответов. Сообщества группируют часто взаимодействующих участников; они не означают согласие, идеологические коалиции или дружбу." /></header>
           <div className="community-strip">
             {dimensions.network.interaction_communities.slice(0, 6).map((community) => (
               <div key={community.community_id}>
@@ -238,7 +286,7 @@ function OverviewContent({
             ))}
           </div>
           <table>
-            <thead><tr><th>Участник</th><th>PageRank</th><th>Brokerage</th><th>Ответы</th></tr></thead>
+            <thead><tr><th>Участник</th><th>PageRank <MetricTip title="PageRank">Относительная центральность в графе ответов: выше у участников, которым отвечают другие центральные участники. Не измеряет истинность, авторитет или влияние.</MetricTip></th><th>Brokerage <MetricTip title="Brokerage / betweenness">Число кратчайших путей взаимодействия, проходящих через участника. Высокое значение указывает на структурное посредничество, но не доказывает передачу знаний.</MetricTip></th><th>Ответы <MetricTip title="Ответы">Количество явных reply-сообщений, отправленных участником в выбранном снимке.</MetricTip></th></tr></thead>
             <tbody>
               {dimensions.network.top_nodes.slice(0, 7).map((node) => (
                 <tr key={node.participant_id}>
@@ -254,7 +302,7 @@ function OverviewContent({
 
       <section className="observatory-grid tertiary">
         <article className="observatory-panel lexical-panel">
-          <header><div><span className="panel-kicker">Лексическая эволюция</span><h2>Темы-навигация</h2></div></header>
+          <header><PanelTitle kicker="Лексическая эволюция" title="Темы-навигация" tip="Слова объединяются по совместному появлению в сообщениях. Это навигационные лексические кластеры, а не валидированные семантические темы или убеждения группы." /></header>
           <div className="theme-grid">
             {dimensions.lexical_evolution.themes.slice(0, 8).map((theme) => (
               <div key={theme.theme_id}>
@@ -265,19 +313,19 @@ function OverviewContent({
             ))}
           </div>
           <div className="term-movement">
-            <div><strong>Чаще во второй половине</strong>{dimensions.lexical_evolution.emerging_terms.slice(0, 8).map((term) => <span key={term.term}>{term.term}</span>)}</div>
-            <div><strong>Чаще в первой половине</strong>{dimensions.lexical_evolution.declining_terms.slice(0, 8).map((term) => <span key={term.term}>{term.term}</span>)}</div>
+            <div><strong>Чаще во второй половине <MetricTip title="Чаще во второй половине">Временной диапазон корпуса делится пополам между первой и последней датой. Здесь показаны слова, доля сообщений с которыми выше после этой временной середины. Это не означает рост убеждения или важности темы.</MetricTip></strong>{dimensions.lexical_evolution.emerging_terms.slice(0, 8).map((term) => <span key={term.term}>{term.term}</span>)}</div>
+            <div><strong>Чаще в первой половине <MetricTip title="Чаще в первой половине">Временной диапазон корпуса делится пополам между первой и последней датой. Здесь показаны слова, доля сообщений с которыми выше до этой временной середины. Сравниваются доли сообщений, а не абсолютные количества.</MetricTip></strong>{dimensions.lexical_evolution.declining_terms.slice(0, 8).map((term) => <span key={term.term}>{term.term}</span>)}</div>
           </div>
           <p className="guardrail"><AlertTriangle /> {dimensions.lexical_evolution.guardrail}</p>
         </article>
 
         <article className="observatory-panel role-panel">
-          <header><div><span className="panel-kicker">Participant × episode</span><h2>Функциональные профили</h2></div><span>предварительно</span></header>
+          <header><PanelTitle kicker="Participant × episode" title="Функциональные профили" tip="Предварительные поведенческие профили основаны на объёме, вопросах, ответах, полученном внимании и сетевой посреднической позиции. Это не личностные и не постоянные роли." /><span>предварительно</span></header>
           <div className="role-list">
             {dimensions.roles.participant_profiles.slice(0, 10).map((role) => (
               <div key={role.participant_id}>
                 <strong>{role.participant}</strong>
-                <span>{role.profiles.join(' · ')}</span>
+                <span>{role.profiles.map((profile) => roleTranslations[profile] ?? profile).join(' · ')}</span>
                 <small>{number.format(role.messages)} сообщений · ответы {percent.format(role.reply_rate)}</small>
               </div>
             ))}
@@ -286,14 +334,14 @@ function OverviewContent({
       </section>
 
       <section className="observatory-panel health-panel">
-        <header><div><span className="panel-kicker">Не агрегируется в один score</span><h2>Примитивы здоровья разговора</h2></div></header>
+        <header><PanelTitle kicker="Не агрегируется в один score" title="Примитивы здоровья разговора" tip="Показатели отображаются раздельно, потому что «здоровье» зависит от цели разговора. Семантическая отзывчивость, grounding, repair, конструктивность и прогресс пока не валидированы." /></header>
         <div>
-          <Metric label="Баланс участия" value={percent.format(numeric(health.participation_balance))} />
-          <Metric label="Разрешение reply-целей" value={percent.format(numeric(health.reply_target_resolution))} />
-          <Metric label="Диадическая взаимность" value={percent.format(numeric(health.dyadic_reciprocity))} />
-          <Metric label="Медиана ответа" value={`${Math.round(numeric(health.median_response_minutes))} мин`} />
+          <Metric label="Баланс участия" value={percent.format(numeric(health.participation_balance))} tip="Нормированная энтропия распределения сообщений. Высокое значение означает более равномерный объём, но не равенство власти или качества вклада." />
+          <Metric label="Разрешение reply-целей" value={percent.format(numeric(health.reply_target_resolution))} tip="Доля reply-маркеров, для которых сообщение-цель присутствует в экспорте. Это прежде всего показатель полноты структуры данных." />
+          <Metric label="Диадическая взаимность" value={percent.format(numeric(health.dyadic_reciprocity))} tip="Доля направленных ответов, у которых наблюдается обратный поток ответов в той же паре участников, с учётом количества событий." />
+          <Metric label="Медиана ответа" value={`${Math.round(numeric(health.median_response_minutes))} мин`} tip="Медианное время явного ответа по валидным временным парам. Быстрый ответ сам по себе не означает понимание или согласие." />
         </div>
-        <p>Пока отсутствуют: {Array.isArray(health.missing_dimensions) ? health.missing_dimensions.join(' · ') : 'семантические измерения'}</p>
+        <p>Пока отсутствуют: {Array.isArray(health.missing_dimensions) ? health.missing_dimensions.map((item) => missingDimensionTranslations[String(item)] ?? String(item)).join(' · ') : 'семантические измерения'}</p>
       </section>
       <footer className="observatory-provenance">
         <span>artifact {overview.artifact_id.slice(0, 8)}</span>
@@ -305,6 +353,6 @@ function OverviewContent({
   )
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="health-metric"><span>{label}</span><strong>{value}</strong></div>
+function Metric({ label, value, tip }: { label: string; value: string; tip: string }) {
+  return <div className="health-metric"><span>{label}<MetricTip title={label}>{tip}</MetricTip></span><strong>{value}</strong></div>
 }

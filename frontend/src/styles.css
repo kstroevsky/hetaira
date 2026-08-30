@@ -687,6 +687,19 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .observatory-header h1 { margin: 2px 0 5px; font-size: 27px; letter-spacing: -.02em; }
 .observatory-header p { margin: 0; color: var(--slate-500); font: 11px ui-monospace, monospace; }
 .eyebrow, .panel-kicker { color: var(--teal); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.panel-title-row, .kpi-label, .header-metric, .health-metric > span, .term-movement strong { display: flex; align-items: center; gap: 6px; }
+.panel-title-row h2 { margin: 1px 0 0; }
+.metric-tip { position: relative; display: inline-flex; color: var(--slate-500); font-weight: 400; letter-spacing: normal; text-transform: none; }
+.metric-tip summary { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; cursor: help; list-style: none; }
+.metric-tip summary::-webkit-details-marker { display: none; }
+.metric-tip summary:hover, .metric-tip summary:focus-visible { color: var(--blue); background: #eaf2fb; outline: none; }
+.metric-tip summary svg { width: 13px; height: 13px; }
+.metric-tip > div { position: absolute; left: -8px; top: 22px; z-index: 40; width: min(290px, calc(100vw - 40px)); padding: 11px 12px; border: 1px solid #b8c5d5; border-radius: 4px; background: #fff; box-shadow: 0 10px 30px rgba(25, 42, 67, .18); color: var(--ink); text-align: left; }
+.metric-tip > div::before { content: ""; position: absolute; top: -5px; left: 10px; width: 8px; height: 8px; border-left: 1px solid #b8c5d5; border-top: 1px solid #b8c5d5; background: #fff; transform: rotate(45deg); }
+.metric-tip > div strong { display: block; margin-bottom: 5px; font-size: 11px; }
+.metric-tip > div p { margin: 0; color: var(--slate-700); font-size: 10px; line-height: 1.45; }
+.network-panel th:nth-last-child(-n+2) .metric-tip > div { right: -8px; left: auto; }
+.network-panel th:nth-last-child(-n+2) .metric-tip > div::before { right: 10px; left: auto; }
 .epistemic-badge { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #abd9d7; background: #f1fbfa; color: #137b79; font-size: 11px; font-weight: 700; }
 .epistemic-badge svg { width: 16px; }
 .observatory-kpis { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }

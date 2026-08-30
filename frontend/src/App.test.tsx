@@ -82,6 +82,10 @@ describe('Prometheus workbench', () => {
       </QueryClientProvider>,
     )
     expect(await screen.findByLabelText('Многомерный обзор корпуса')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Что означает: Сообщения'))
+    expect(screen.getByText(/Число сообщений и системных событий/)).toBeVisible()
+    fireEvent.click(screen.getByLabelText('Что означает: Чаще в первой половине'))
+    expect(screen.getByText(/до этой временной середины/)).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Корпусы' }))
     expect(await screen.findByText('Микроскоп анализа')).toBeInTheDocument()
     expect(screen.getByText('Цепочка доказательств')).toBeInTheDocument()
