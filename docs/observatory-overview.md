@@ -5,7 +5,7 @@ The Overview is the primary analytical surface. It is a content-hashed projectio
 Every Overview build creates:
 
 - one `AnalysisRun` and idempotent task fingerprinted by snapshot manifest and analysis version;
-- nine independent `MeasurementResult` records;
+- ten independent `MeasurementResult` records;
 - descriptive `Finding` records linked to their source measurements;
 - one `AnalyticalArtifact` containing the compact dashboard model;
 - derivation edges from measurements to findings and the artifact.
@@ -37,6 +37,23 @@ Provisional profiles combine message volume, question rate, reply rate, attentio
 ### Lexical evolution
 
 Russian tokens are counted by message-level document frequency. Frequent terms are connected by within-message co-occurrence and grouped into navigation clusters. These are lexical navigation aids, not validated semantic topics, beliefs, or topic prevalence estimates. Arbitrary first/second-half comparisons are deliberately excluded.
+
+### Provisional semantic themes
+
+The semantic explorer preserves the versioned eight-hour structural episodes, then splits long episodes into deterministic windows of at most 40 consecutive messages. This prevents one long, multi-topic session from becoming a single semantic unit. Russian text is lemmatized with `pymorphy3`, represented by TF-IDF unigrams and bigrams, compressed with truncated SVD, and normalized before K-means clustering. The cluster count is selected from bounded candidates using cosine silhouette; candidates that create clusters smaller than 1% of windows (minimum two) are rejected. Silhouette evaluation is deterministically sampled at 2,000 windows to keep large local corpora tractable. Theme labels rank terms by their TF-IDF distinctiveness from the corpus-wide centroid rather than raw frequency.
+
+For each theme the artifact preserves:
+
+- characteristic terms and the automatically generated navigation label;
+- episode and message counts;
+- monthly message share rather than an arbitrary corpus midpoint;
+- robust month-to-month change candidates and the number of subsequent months for which the direction persists;
+- participant composition using source display names;
+- three typical episodes and a message selected by TF-IDF proximity to the theme centroid as inspectable evidence.
+
+The theme layer is `provisional_semantic_navigation`. Its labels are not human-validated topics, its monthly shifts do not establish causes, and participation inside thematic episodes is not authorship, expertise, or influence. A later embedding challenger and adjudicated Russian evaluation set can replace or complement this baseline without changing the public artifact contract.
+
+The UI exposes cosine silhouette as an internal separation diagnostic and labels values below `0.10` as low separation, `0.10–0.20` as moderate, and `≥0.20` as high. These are conservative navigation heuristics, not universal scientific thresholds. Low-separation themes remain explorable but cannot automatically create a top-level `Finding`; their change candidates must be checked from representative source messages.
 
 ### Conversation-health primitives
 

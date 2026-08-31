@@ -11,6 +11,13 @@ from statistics import median
 from typing import Any
 
 import igraph as ig
+import numpy as np
+import pymorphy3
+from sklearn.cluster import KMeans
+from sklearn.decomposition import TruncatedSVD
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import silhouette_score
+from sklearn.preprocessing import Normalizer
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
@@ -26,6 +33,8 @@ from .models import (
     CorpusSnapshot,
     DependencyFingerprint,
     DerivationEdge,
+    Episode,
+    EpisodeMessage,
     Finding,
     MeasurementDefinition,
     MeasurementResult,
@@ -38,7 +47,7 @@ from .models import (
 )
 from .ontology import CausalStatus, EpistemicLevel, RunStatus
 
-ANALYSIS_VERSION = "observatory-overview@1.1.0"
+ANALYSIS_VERSION = "observatory-overview@1.4.2"
 WORD_PATTERN = re.compile(r"[а-яё]{4,}", re.IGNORECASE)
 RUSSIAN_STOPWORDS = {
     "более",
@@ -53,6 +62,7 @@ RUSSIAN_STOPWORDS = {
     "вообще",
     "всего",
     "всех",
+    "весь",
     "где",
     "даже",
     "другой",
@@ -73,6 +83,7 @@ RUSSIAN_STOPWORDS = {
     "между",
     "меня",
     "может",
+    "мочь",
     "можно",
     "много",
     "надо",
@@ -100,6 +111,7 @@ RUSSIAN_STOPWORDS = {
     "также",
     "такой",
     "такое",
+    "который",
     "тебя",
     "только",
     "тоже",
@@ -120,6 +132,22 @@ RUSSIAN_STOPWORDS = {
     "обсуждалось",
     "скорее",
     "является",
+    "говорить",
+    "брать",
+    "взять",
+    "делать",
+    "думать",
+    "знать",
+    "какой",
+    "команда",
+    "написать",
+    "обсуждаться",
+    "понимать",
+    "поддержать",
+    "свой",
+    "человек",
+    "хороший",
+    "хотеть",
 }
 
 
@@ -152,6 +180,8 @@ class ObservatoryBuilder:
     def __init__(self, session: Session) -> None:
         self.session = session
         self.settings = get_settings()
+        self._morph: pymorphy3.MorphAnalyzer | None = None
+        self._lemma_cache: dict[str, str] = {}
 
     def build(self, corpus_id: str, *, force: bool = False) -> AnalyticalArtifact:
         corpus = self.session.get(Corpus, corpus_id)
@@ -191,7 +221,7 @@ class ObservatoryBuilder:
             task_key="build_observatory_overview",
             status=RunStatus.RUNNING,
             progress=0,
-            idempotency_key=fingerprint,
+            idempotency_key=f"{fingerprint}:force:{run.id}" if force else fingerprint,
             checkpoint={},
         )
         self.session.add_all([run, task])
@@ -307,6 +337,7 @@ class ObservatoryBuilder:
         token_documents: Counter[str] = Counter()
         message_count = 0
         service_events = 0
+        unresolved_sender_messages = 0
         reply_marked = 0
         empty_messages = 0
         total_characters = 0
@@ -317,6 +348,7 @@ class ObservatoryBuilder:
                 Message.sent_at,
                 Message.message_type,
                 Message.reply_to_external_id,
+                Message.raw_metadata,
                 MessageRevision.text,
             )
             .join(SnapshotMessageRevision, SnapshotMessageRevision.message_id == Message.id)
@@ -330,6 +362,11 @@ class ObservatoryBuilder:
             month = row.sent_at.strftime("%Y-%m")
             monthly[month] += 1
             service_events += int(row.message_type == "service")
+            unresolved_sender_messages += int(
+                row.message_type == "message"
+                and row.sender_id is None
+                and (row.raw_metadata or {}).get("sender_identity_basis") == "unresolved_sender_run"
+            )
             reply_marked += int(row.reply_to_external_id is not None)
             empty_messages += int(not row.text.strip())
             total_characters += len(row.text)
@@ -426,6 +463,7 @@ class ObservatoryBuilder:
             snapshot,
             token_documents,
         )
+        semantic_themes = self._semantic_themes(corpus, snapshot, temporal)
         sessions = (
             self.session.scalar(
                 select(func.count())
@@ -454,6 +492,7 @@ class ObservatoryBuilder:
             "messages": message_count,
             "participants": len(participant_messages),
             "service_events": service_events,
+            "unresolved_sender_messages": unresolved_sender_messages,
             "empty_messages": empty_messages,
             "mean_message_characters": total_characters / message_count if message_count else 0,
             "first_timestamp": first_at.isoformat() if first_at else None,
@@ -489,6 +528,7 @@ class ObservatoryBuilder:
                 "network": network,
                 "roles": roles,
                 "lexical_evolution": lexical,
+                "semantic_themes": semantic_themes,
                 "health_primitives": health_primitives,
                 "data_quality": {
                     "timestamp_timezone": "unspecified_in_telegram_html"
@@ -496,6 +536,7 @@ class ObservatoryBuilder:
                     else "source_defined",
                     "missing_reply_targets": max(reply_marked - response_count, 0),
                     "missing_attachment_binaries": attachment_states.get("not_included", 0),
+                    "unresolved_sender_messages": unresolved_sender_messages,
                     "language_validation": corpus.is_validated_language,
                 },
             },
@@ -745,6 +786,400 @@ class ObservatoryBuilder:
             ),
         }
 
+    def _semantic_themes(
+        self,
+        corpus: Corpus,
+        snapshot: CorpusSnapshot,
+        temporal: dict[str, Any],
+    ) -> dict[str, Any]:
+        episodes: dict[str, dict[str, Any]] = {}
+        statement = (
+            select(
+                Episode.id.label("episode_id"),
+                Message.id.label("message_id"),
+                Message.sender_id,
+                Message.sent_at,
+                MessageRevision.text,
+            )
+            .join(EpisodeMessage, EpisodeMessage.episode_id == Episode.id)
+            .join(Message, Message.id == EpisodeMessage.message_id)
+            .join(
+                SnapshotMessageRevision,
+                SnapshotMessageRevision.message_id == Message.id,
+            )
+            .join(
+                MessageRevision,
+                MessageRevision.id == SnapshotMessageRevision.revision_id,
+            )
+            .join(ConversationSession, ConversationSession.id == Episode.session_id)
+            .join(Conversation, Conversation.id == ConversationSession.conversation_id)
+            .where(
+                SnapshotMessageRevision.snapshot_id == snapshot.id,
+                Conversation.corpus_id == corpus.id,
+                Message.message_type == "message",
+            )
+            .order_by(Episode.id, EpisodeMessage.ordinal)
+            .execution_options(yield_per=1000)
+        )
+        for row in self.session.execute(statement):
+            episode = episodes.setdefault(
+                row.episode_id,
+                {
+                    "id": row.episode_id,
+                    "records": [],
+                },
+            )
+            episode["records"].append(
+                {
+                    "message_id": row.message_id,
+                    "sender_id": row.sender_id,
+                    "sent_at": row.sent_at,
+                    "text": row.text,
+                }
+            )
+        documents = self._semantic_windows(episodes)
+        if not documents:
+            return self._empty_semantic_themes(
+                "no non-empty episodes",
+                structural_episode_count=len(episodes),
+            )
+        lemmatized = [self._lemmatize("\n".join(episode["texts"])) for episode in documents]
+        vectorizer = TfidfVectorizer(
+            token_pattern=r"(?u)\b[а-яё][а-яё]+\b",
+            ngram_range=(1, 2),
+            min_df=2 if len(documents) >= 4 else 1,
+            max_df=0.9 if len(documents) >= 4 else 1.0,
+            max_features=20_000,
+            sublinear_tf=True,
+        )
+        try:
+            matrix = vectorizer.fit_transform(lemmatized)
+        except ValueError:
+            return self._empty_semantic_themes(
+                "insufficient Russian lexical features",
+                structural_episode_count=len(episodes),
+                window_count=len(documents),
+            )
+        if matrix.shape[1] < 2:
+            return self._empty_semantic_themes(
+                "insufficient feature variance",
+                structural_episode_count=len(episodes),
+                window_count=len(documents),
+            )
+        components = min(48, matrix.shape[0] - 1, matrix.shape[1] - 1)
+        if components >= 2:
+            reducer = TruncatedSVD(n_components=components, random_state=42)
+            vectors = Normalizer(copy=False).fit_transform(reducer.fit_transform(matrix))
+            explained_variance = float(reducer.explained_variance_ratio_.sum())
+        else:
+            vectors = matrix.toarray()
+            explained_variance = 1.0
+        labels, cluster_count, silhouette = self._select_clusters(vectors)
+        feature_names = vectorizer.get_feature_names_out()
+        participant_names = {
+            participant.id: participant.display_name
+            for participant in self.session.scalars(
+                select(Participant).where(Participant.corpus_id == corpus.id)
+            )
+        }
+        months = [item["month"] for item in temporal["monthly_activity"]]
+        monthly_totals = {item["month"]: item["messages"] for item in temporal["monthly_activity"]}
+        global_centroid = np.asarray(matrix.mean(axis=0)).ravel()
+        themes = []
+        all_changes = []
+        for cluster_id in range(cluster_count):
+            indices = np.flatnonzero(labels == cluster_id)
+            if not len(indices):
+                continue
+            centroid = np.asarray(matrix[indices].mean(axis=0)).ravel()
+            distinctiveness = centroid * np.maximum(
+                np.log((centroid + 1e-9) / (global_centroid + 1e-9)),
+                0,
+            )
+            top_indices = distinctiveness.argsort()[::-1]
+            terms = [
+                str(feature_names[index]) for index in top_indices if distinctiveness[index] > 0
+            ][:10]
+            center = vectors[indices].mean(axis=0)
+            distances = np.linalg.norm(vectors[indices] - center, axis=1)
+            representative_indices = indices[np.argsort(distances)[:3]]
+            representative_ids = [
+                self._representative_message_id(
+                    documents[index],
+                    vectorizer,
+                    centroid,
+                )
+                for index in representative_indices
+            ]
+            monthly_messages: Counter[str] = Counter()
+            participant_counts: Counter[str] = Counter()
+            message_total = 0
+            for index in indices:
+                episode = documents[index]
+                month = episode["start_at"].strftime("%Y-%m")
+                episode_messages = len(episode["message_ids"])
+                monthly_messages[month] += episode_messages
+                message_total += episode_messages
+                participant_counts.update(episode["participants"])
+            trajectory = [
+                {
+                    "month": month,
+                    "messages": monthly_messages[month],
+                    "share": (
+                        monthly_messages[month] / monthly_totals[month]
+                        if monthly_totals.get(month)
+                        else 0
+                    ),
+                }
+                for month in months
+            ]
+            change_points = self._theme_change_points(trajectory)
+            label = " · ".join(terms[:3]) if terms else f"Тема {cluster_id + 1}"
+            theme = {
+                "theme_id": cluster_id,
+                "label": label,
+                "terms": terms,
+                "episodes": len(indices),
+                "messages": message_total,
+                "trajectory": trajectory,
+                "change_points": change_points,
+                "top_participants": [
+                    {
+                        "participant_id": participant_id,
+                        "participant": participant_names.get(
+                            participant_id, "Неизвестный участник"
+                        ),
+                        "messages": count,
+                        "share": count / message_total if message_total else 0,
+                    }
+                    for participant_id, count in participant_counts.most_common(8)
+                ],
+                "representative_message_ids": representative_ids,
+            }
+            themes.append(theme)
+            all_changes.extend(
+                {
+                    **change,
+                    "theme_id": cluster_id,
+                    "theme_label": label,
+                    "representative_message_id": representative_ids[0]
+                    if representative_ids
+                    else None,
+                }
+                for change in change_points
+            )
+        themes.sort(key=lambda item: item["messages"], reverse=True)
+        all_changes.sort(key=lambda item: item["robust_score"], reverse=True)
+        separation_quality = self._separation_quality(silhouette)
+        return {
+            "method": "pymorphy3_tfidf_svd_kmeans_episode_window_v2",
+            "status": "provisional_semantic_navigation",
+            "unit": "episode_window",
+            "structural_episode_count": len(episodes),
+            "window_message_limit": 40,
+            "episode_count": len(documents),
+            "cluster_count": len(themes),
+            "silhouette": silhouette,
+            "separation_quality": separation_quality,
+            "quality_note": {
+                "high": "Темы хорошо разделены по внутренней диагностике.",
+                "moderate": "Темы разделены умеренно; соседние темы могут пересекаться.",
+                "low": (
+                    "Разделимость низкая: используйте темы для навигации, "
+                    "а не как устойчивую таксономию разговора."
+                ),
+                "unavailable": "Разделимость невозможно оценить на доступных данных.",
+            }[separation_quality],
+            "explained_variance": explained_variance,
+            "themes": themes,
+            "change_events": all_changes[:15],
+            "guardrail": (
+                "Темы получены без учителя из окон до 40 сообщений внутри сессий; "
+                "названия основаны на отличительных терминах и требуют человеческой проверки."
+            ),
+        }
+
+    @staticmethod
+    def _semantic_windows(
+        episodes: dict[str, dict[str, Any]],
+        *,
+        message_limit: int = 40,
+        minimum_tail: int = 10,
+    ) -> list[dict[str, Any]]:
+        windows: list[dict[str, Any]] = []
+        for episode in episodes.values():
+            records = episode["records"]
+            chunks = [
+                records[index : index + message_limit]
+                for index in range(0, len(records), message_limit)
+            ]
+            if len(chunks) > 1 and len(chunks[-1]) < minimum_tail:
+                chunks[-2].extend(chunks.pop())
+            for window_index, chunk in enumerate(chunks):
+                texts = [record["text"] for record in chunk if record["text"].strip()]
+                if not texts:
+                    continue
+                text_records = [record for record in chunk if record["text"].strip()]
+                windows.append(
+                    {
+                        "id": f"{episode['id']}:{window_index}",
+                        "texts": texts,
+                        "text_message_ids": [record["message_id"] for record in text_records],
+                        "message_ids": [record["message_id"] for record in chunk],
+                        "participants": Counter(
+                            record["sender_id"] for record in chunk if record["sender_id"]
+                        ),
+                        "start_at": chunk[0]["sent_at"],
+                    }
+                )
+        return windows
+
+    @staticmethod
+    def _separation_quality(silhouette: float | None) -> str:
+        if silhouette is None:
+            return "unavailable"
+        if silhouette >= 0.2:
+            return "high"
+        if silhouette >= 0.1:
+            return "moderate"
+        return "low"
+
+    def _lemmatize(self, value: str) -> str:
+        lemmas = []
+        for token in WORD_PATTERN.findall(value):
+            lowered = token.casefold()
+            lemma = self._lemma_cache.get(lowered)
+            if lemma is None:
+                if self._morph is None:
+                    self._morph = pymorphy3.MorphAnalyzer()
+                lemma = self._morph.parse(lowered)[0].normal_form
+                self._lemma_cache[lowered] = lemma
+            if len(lemma) >= 4 and lemma not in RUSSIAN_STOPWORDS:
+                lemmas.append(lemma)
+        return " ".join(lemmas)
+
+    def _representative_message_id(
+        self,
+        episode: dict[str, Any],
+        vectorizer: TfidfVectorizer,
+        theme_centroid: np.ndarray,
+    ) -> str:
+        texts = episode["texts"]
+        message_ids = episode["text_message_ids"]
+        if not texts:
+            return episode["message_ids"][0]
+        message_matrix = vectorizer.transform(self._lemmatize(text) for text in texts)
+        similarities = np.asarray(message_matrix @ theme_centroid).ravel()
+        return message_ids[int(similarities.argmax())]
+
+    @staticmethod
+    def _select_clusters(vectors: np.ndarray) -> tuple[np.ndarray, int, float | None]:
+        count = len(vectors)
+        if count < 2:
+            return np.zeros(count, dtype=int), 1, None
+        distinct_count = len(np.unique(np.round(vectors, decimals=8), axis=0))
+        if distinct_count < 2:
+            return np.zeros(count, dtype=int), 1, None
+        maximum = min(10, count - 1, distinct_count)
+        minimum = 2
+        best_labels = np.zeros(count, dtype=int)
+        best_count = 1
+        best_score = -1.0
+        minimum_cluster_size = max(2, math.ceil(count * 0.01))
+        for cluster_count in range(minimum, maximum + 1):
+            model = KMeans(n_clusters=cluster_count, random_state=42, n_init=10)
+            labels = model.fit_predict(vectors)
+            if len(set(labels)) < 2:
+                continue
+            cluster_sizes = np.bincount(labels)
+            if cluster_sizes.min() < minimum_cluster_size:
+                continue
+            try:
+                score = float(
+                    silhouette_score(
+                        vectors,
+                        labels,
+                        metric="cosine",
+                        sample_size=min(count, 2_000),
+                        random_state=42,
+                    )
+                )
+            except ValueError:
+                continue
+            if not math.isfinite(score):
+                continue
+            if score > best_score:
+                best_labels = labels
+                best_count = cluster_count
+                best_score = score
+        return best_labels, best_count, best_score if best_count > 1 else None
+
+    @staticmethod
+    def _theme_change_points(trajectory: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if len(trajectory) < 4:
+            return []
+        deltas = [
+            math.log((trajectory[index]["share"] + 1e-4) / (trajectory[index - 1]["share"] + 1e-4))
+            for index in range(1, len(trajectory))
+        ]
+        center = median(deltas)
+        mad = median(abs(value - center) for value in deltas)
+        changes = []
+        for index, delta in enumerate(deltas, start=1):
+            score = abs(delta - center) / (1.4826 * mad) if mad else abs(delta - center)
+            if score < 2 or trajectory[index]["messages"] < 5:
+                continue
+            direction = "increase" if delta > 0 else "decrease"
+            previous_share = trajectory[index - 1]["share"]
+            current_share = trajectory[index]["share"]
+            threshold = (previous_share + current_share) / 2
+            persistence = 0
+            for later in trajectory[index:]:
+                persists = (
+                    later["share"] >= threshold
+                    if direction == "increase"
+                    else later["share"] <= threshold
+                )
+                if not persists:
+                    break
+                persistence += 1
+            changes.append(
+                {
+                    "month": trajectory[index]["month"],
+                    "direction": direction,
+                    "previous_share": previous_share,
+                    "share": current_share,
+                    "share_delta": current_share - previous_share,
+                    "robust_score": score,
+                    "persistence_months": persistence,
+                }
+            )
+        return sorted(changes, key=lambda item: item["robust_score"], reverse=True)[:5]
+
+    @staticmethod
+    def _empty_semantic_themes(
+        reason: str,
+        *,
+        structural_episode_count: int = 0,
+        window_count: int = 0,
+    ) -> dict[str, Any]:
+        return {
+            "method": "pymorphy3_tfidf_svd_kmeans_episode_window_v2",
+            "status": "insufficient_data",
+            "unit": "episode_window",
+            "structural_episode_count": structural_episode_count,
+            "window_message_limit": 40,
+            "episode_count": window_count,
+            "cluster_count": 0,
+            "silhouette": None,
+            "separation_quality": "unavailable",
+            "quality_note": "Разделимость невозможно оценить на доступных данных.",
+            "explained_variance": None,
+            "themes": [],
+            "change_events": [],
+            "guardrail": reason,
+        }
+
     def _persist_measurements(
         self,
         corpus: Corpus,
@@ -753,13 +1188,14 @@ class ObservatoryBuilder:
         payloads: dict[str, Any],
     ) -> dict[str, MeasurementResult]:
         results: dict[str, MeasurementResult] = {}
+        measurement_version = ANALYSIS_VERSION.rsplit("@", maxsplit=1)[-1]
         for dimension, payload in payloads.items():
-            definition_id = f"observatory-{dimension}@1"
+            definition_id = f"observatory-{dimension}@{measurement_version}"
             if self.session.get(MeasurementDefinition, definition_id) is None:
                 self.session.add(
                     MeasurementDefinition(
                         id=definition_id,
-                        version="1",
+                        version=measurement_version,
                         title=dimension.replace("_", " ").title(),
                         description=(
                             "Snapshot-scoped descriptive observatory measurement; "
@@ -769,7 +1205,8 @@ class ObservatoryBuilder:
                         manifest={
                             "analysis_version": ANALYSIS_VERSION,
                             "causal": False,
-                            "provisional": dimension in {"roles", "lexical_evolution"},
+                            "provisional": dimension
+                            in {"roles", "lexical_evolution", "semantic_themes"},
                         },
                     )
                 )
@@ -840,6 +1277,22 @@ class ObservatoryBuilder:
                 None,
             )
         )
+        semantic = payloads["semantic_themes"]
+        if semantic["change_events"] and semantic["separation_quality"] != "low":
+            change = semantic["change_events"][0]
+            candidates.append(
+                (
+                    "semantic_themes",
+                    f"Тема «{change['theme_label']}» изменила месячную долю сообщений "
+                    f"в {change['month']} с {change['previous_share']:.1%} "
+                    f"до {change['share']:.1%}.",
+                    [
+                        "Автоматическая тема предварительна; изменение может отражать "
+                        "одно событие, смену состава участников или ошибку кластеризации."
+                    ],
+                    change.get("representative_message_id"),
+                )
+            )
         output = []
         for dimension, claim, alternatives, message_id in candidates:
             supporting = [{"object_type": "message", "object_id": message_id}] if message_id else []
