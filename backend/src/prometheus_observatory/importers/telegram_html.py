@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 import tarfile
+from collections import defaultdict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -16,6 +17,7 @@ from .base import ConversationMetadata, NormalizedAttachment, NormalizedMessage
 
 PAGE_PATTERN = re.compile(r"^messages(?P<number>\d*)\.html$")
 MESSAGE_ID_PATTERN = re.compile(r"(?:message|go_to_message)(\d+)")
+DIRECTORY_LINE_PATTERN = re.compile(r"(?:^|\n)\s*-?\s*(?P<user_id>\d{5,})\s*:\s*(?P<name>[^\n]+)")
 
 
 def page_order(name: str) -> int:
@@ -52,6 +54,7 @@ class TelegramHTMLParser:
         )
 
     def iter_messages(self, path: Path) -> Iterator[NormalizedMessage]:
+        source_directory = self._source_identity_directory(path)
         last_sender_name = "Системное сообщение"
         last_sender_id: str | None = None
         last_sender_source_name = "Системное сообщение"
@@ -119,8 +122,10 @@ class TelegramHTMLParser:
                     )
                     profile_links = name_nodes[0].xpath(".//a/@href")
                     last_sender_id, last_sender_identity_basis = self._sender_identity(
+                        last_sender_source_name,
                         photo_sources,
                         profile_links,
+                        source_directory,
                     )
                     last_sender_name = last_sender_source_name
                     last_sender_run_id = (
@@ -233,8 +238,10 @@ class TelegramHTMLParser:
 
     @staticmethod
     def _sender_identity(
+        name: str,
         photo_sources: list[str],
         profile_links: list[str],
+        source_directory: dict[str, str],
     ) -> tuple[str | None, str]:
         if photo_sources:
             match = re.search(r"author_(\d+)", photo_sources[0])
@@ -244,7 +251,36 @@ class TelegramHTMLParser:
             match = re.match(r"https?://t\.me/([A-Za-z0-9_]{5,})/?$", link)
             if match:
                 return f"username:{match.group(1).casefold()}", "telegram_username"
+        mapped_id = source_directory.get(name.casefold())
+        if mapped_id is not None:
+            return f"user{mapped_id}", "source_directory_mapping"
         return None, "unresolved_sender_run"
+
+    def _source_identity_directory(self, path: Path) -> dict[str, str]:
+        candidates: defaultdict[str, set[str]] = defaultdict(set)
+        for _page_name, page in self._pages(path):
+            root = self._parse(page)
+            text_nodes = root.xpath(
+                "//div[contains(concat(' ', normalize-space(@class), ' '), ' text ') "
+                "and count(.//code) >= 3]"
+            )
+            for node in text_nodes:
+                numeric_codes = [
+                    compact_text(code.text_content())
+                    for code in node.xpath(".//code")
+                    if compact_text(code.text_content()).isdigit()
+                ]
+                if len(numeric_codes) < 3:
+                    continue
+                for match in DIRECTORY_LINE_PATTERN.finditer(self._node_text(node)):
+                    name = compact_text(match.group("name"))
+                    if name:
+                        candidates[name.casefold()].add(match.group("user_id"))
+        return {
+            name: next(iter(user_ids))
+            for name, user_ids in candidates.items()
+            if len(user_ids) == 1
+        }
 
     @staticmethod
     def _reply_target(value: str) -> str | None:

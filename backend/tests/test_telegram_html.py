@@ -60,6 +60,18 @@ def write_export(root: Path) -> None:
         <div class="pull_right date details" title="17 June 2024, 12:07:00">12:07</div>
         <div class="from_name"><a href="https://t.me/source_user">Renamed User</a></div>
         <div class="text">Тот же логин после переименования.</div></div></div>
+        <div class="message default clearfix" id="message10"><div class="pull_left userpic_wrap">
+        <img src="photos/author_999.jpg"></div><div class="body">
+        <div class="pull_right date details" title="17 June 2024, 12:08:00">12:08</div>
+        <div class="from_name">Roster Bot</div><div class="text">
+        The following users are approved:<br>
+        - <code>5331440637</code>: Early Bird<br>- <code>1825173773</code>: Людвиг<br>
+        - <code>12345</code>: Third User</div></div></div>
+        <div class="message default clearfix" id="message11"><div class="pull_left userpic_wrap">
+        <div class="userpic userpic5"><div class="initials">EB</div></div></div><div class="body">
+        <div class="pull_right date details" title="17 June 2024, 12:09:00">12:09</div>
+        <div class="from_name">Early Bird</div><div class="text">Сообщение без фотографии.</div>
+        </div></div>
         </body></html>""",
         encoding="utf-8",
     )
@@ -84,6 +96,8 @@ def test_html_parser_preserves_joined_sender_reply_service_and_missing_media(
         "7",
         "8",
         "9",
+        "10",
+        "11",
     ]
     assert messages[1].sender_external_id == messages[0].sender_external_id == "user42"
     assert messages[1].reply_to_external_id == "1"
@@ -102,6 +116,8 @@ def test_html_parser_preserves_joined_sender_reply_service_and_missing_media(
     assert messages[7].sender_external_id == messages[8].sender_external_id
     assert messages[7].sender_external_id == "username:source_user"
     assert messages[7].metadata["sender_identity_basis"] == "telegram_username"
+    assert messages[10].sender_external_id == "user5331440637"
+    assert messages[10].metadata["sender_identity_basis"] == "source_directory_mapping"
 
 
 def test_html_directory_is_content_addressed_and_importable(
@@ -128,9 +144,9 @@ def test_html_directory_is_content_addressed_and_importable(
         "application/x-tar",
         "telegram_html",
     )
-    assert result.imported_messages == 9
-    assert db_session.scalar(select(func.count()).select_from(Participant)) == 3
-    assert db_session.scalar(select(func.count()).select_from(Message)) == 9
+    assert result.imported_messages == 11
+    assert db_session.scalar(select(func.count()).select_from(Participant)) == 5
+    assert db_session.scalar(select(func.count()).select_from(Message)) == 11
     unresolved = db_session.scalar(select(Message).where(Message.external_id == "5"))
     assert unresolved is not None and unresolved.sender_id is None
     assert unresolved.raw_metadata["unresolved_sender_run_id"] == "message:5"
