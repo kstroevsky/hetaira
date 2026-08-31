@@ -144,6 +144,33 @@ export type ObservatoryFinding = {
   alternative_explanations: string[]
 }
 
+export type SemanticThemeChange = {
+  month: string
+  direction: 'increase' | 'decrease'
+  previous_share: number
+  share: number
+  share_delta: number
+  robust_score: number
+  persistence_months: number
+}
+
+export type SemanticTheme = {
+  theme_id: number
+  label: string
+  terms: string[]
+  episodes: number
+  messages: number
+  trajectory: Array<{ month: string; messages: number; share: number }>
+  change_points: SemanticThemeChange[]
+  top_participants: Array<{
+    participant_id: string
+    participant: string
+    messages: number
+    share: number
+  }>
+  representative_message_ids: string[]
+}
+
 export type ObservatoryOverview = {
   artifact_id: string
   content_hash: string
@@ -230,6 +257,26 @@ export type ObservatoryOverview = {
         theme_id: number
         terms: string[]
         document_frequency: number
+      }>
+      guardrail: string
+    }
+    semantic_themes?: {
+      method: string
+      status: string
+      unit: string
+      structural_episode_count: number
+      window_message_limit: number
+      episode_count: number
+      cluster_count: number
+      silhouette: number | null
+      separation_quality: 'high' | 'moderate' | 'low' | 'unavailable'
+      quality_note: string
+      explained_variance: number | null
+      themes: SemanticTheme[]
+      change_events: Array<SemanticThemeChange & {
+        theme_id: number
+        theme_label: string
+        representative_message_id: string | null
       }>
       guardrail: string
     }

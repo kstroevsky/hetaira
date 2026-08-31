@@ -5,7 +5,6 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
-  CircleHelp,
   GitBranch,
   Network,
   RefreshCw,
@@ -16,6 +15,8 @@ import {
 
 import { buildObservatory, fetchObservatory } from '../api/client'
 import type { ObservatoryOverview } from '../api/types'
+import { MetricTip } from './MetricTip'
+import { SemanticThemeExplorer } from './SemanticThemeExplorer'
 
 type ObservatoryOverviewProps = {
   corpusId: string
@@ -45,17 +46,6 @@ const missingDimensionTranslations: Record<string, string> = {
 
 function numeric(value: unknown): number {
   return typeof value === 'number' ? value : 0
-}
-
-function MetricTip({ title, children }: { title: string; children: string }) {
-  return (
-    <details className="metric-tip">
-      <summary aria-label={`Что означает: ${title}`} title={`Что означает: ${title}`}>
-        <CircleHelp aria-hidden="true" />
-      </summary>
-      <div role="note"><strong>{title}</strong><p>{children}</p></div>
-    </details>
-  )
 }
 
 function PanelTitle({
@@ -199,6 +189,7 @@ function OverviewContent({
   const reply = dimensions.reply_structure
   const source = dimensions.source
   const health = dimensions.health_primitives
+  const unresolvedSenders = numeric(source.unresolved_sender_messages)
   return (
     <main className="observatory" aria-label="Многомерный обзор корпуса">
       <header className="observatory-header">
@@ -217,7 +208,7 @@ function OverviewContent({
 
       <section className="observatory-kpis" aria-label="Ключевые показатели">
         <KpiCard icon={Activity} label="Сообщения" value={number.format(overview.snapshot.message_count)} note={`${numeric(source.sessions_8h)} сессий по границе 8ч`} tip="Число сообщений и системных событий в выбранной неизменяемой ревизии корпуса. Сессия начинается после паузы более восьми часов." />
-        <KpiCard icon={Users} label="Участники" value={number.format(numeric(source.participants))} note={`баланс ${percent.format(dimensions.participation.normalized_entropy)}`} tip="Количество уникальных отправителей. Баланс — нормированная энтропия Шеннона: 100% означает равномерный объём сообщений, а не равное влияние." />
+        <KpiCard icon={Users} label="Участники" value={number.format(numeric(source.participants))} note={`баланс ${percent.format(dimensions.participation.normalized_entropy)}${unresolvedSenders ? ` · ${compact.format(unresolvedSenders)} без ID` : ''}`} tip={`Количество подтверждённых отправителей по source ID или login. Баланс — нормированная энтропия Шеннона: 100% означает равномерный объём сообщений, а не равное влияние.${unresolvedSenders ? ` Ещё ${number.format(unresolvedSenders)} сообщений не имеют стабильного ID в экспорте: имя отображается в ленте, но они не объединяются в вымышленного участника.` : ''}`} />
         <KpiCard icon={GitBranch} label="Разрешённые ответы" value={number.format(numeric(reply.resolved_reply_relations))} note={`${percent.format(numeric(reply.target_resolution_rate))} известных целей`} tip="Явные reply-ссылки, для которых исходное сообщение присутствует в экспорте. Отсутствующие цели остаются пропусками и не восстанавливаются догадкой." />
         <KpiCard icon={Network} label="Направленные диады" value={number.format(dimensions.network.directed_dyads)} note={`${dimensions.network.interaction_communities.length} сообществ взаимодействия`} tip="Число уникальных направленных пар «кто кому отвечал». A→B и B→A — разные диады. Это структура взаимодействия, не коалиции позиций." />
         <KpiCard icon={SearchCheck} label="Медиана ответа" value={`${Math.round(numeric(reply.median_response_minutes))} мин`} note={`p90 ${Math.round(numeric(reply.p90_response_minutes))} мин`} tip="Медианное время от сообщения-цели до явного ответа. p90 — время, быстрее которого пришли 90% валидных ответов; отрицательные и более 30 дней исключены." />
@@ -259,6 +250,11 @@ function OverviewContent({
           </div>
         </article>
       </section>
+
+      <SemanticThemeExplorer
+        analysis={dimensions.semantic_themes}
+        onOpenEvidence={onOpenEvidence}
+      />
 
       <section className="observatory-grid secondary">
         <article className="observatory-panel participation-panel">

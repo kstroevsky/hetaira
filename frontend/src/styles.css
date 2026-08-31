@@ -733,6 +733,55 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .finding-feed p { margin: 7px 0 4px; font-size: 13px; line-height: 1.4; }
 .finding-feed small { display: block; color: var(--slate-500); font-size: 10px; line-height: 1.35; }
 .finding-feed button { margin-top: 7px; border: 0; padding: 0; background: transparent; color: #176bb8; font-size: 10px; text-decoration: underline; cursor: pointer; }
+.semantic-explorer { margin-bottom: 12px; }
+.semantic-quality { display: flex; align-items: center; gap: 12px; color: var(--slate-500); font: 9px ui-monospace, monospace; }
+.semantic-quality > span { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.semantic-quality .metric-tip > div { right: -8px; left: auto; }
+.semantic-quality .metric-tip > div::before { right: 10px; left: auto; }
+.semantic-separation { padding: 3px 6px; border-radius: 9px; font: normal 8px system-ui, sans-serif; }
+.semantic-separation.high { background: #e2f7ef; color: #12664d; }
+.semantic-separation.moderate { background: #fff0d2; color: #765310; }
+.semantic-separation.low, .semantic-separation.unavailable { background: #ffeaed; color: var(--red); }
+.semantic-layout { display: grid; grid-template-columns: 245px minmax(0, 1fr); min-height: 510px; }
+.semantic-theme-list { max-height: 555px; overflow-y: auto; border-right: 1px solid var(--slate-200); background: var(--slate-100); }
+.semantic-theme-list button { width: 100%; display: grid; gap: 4px; padding: 11px 12px; border: 0; border-bottom: 1px solid var(--slate-200); background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.semantic-theme-list button:hover { background: #fff; }
+.semantic-theme-list button:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--blue); outline-offset: -2px; }
+.semantic-theme-list button.active { background: #fff; box-shadow: inset 3px 0 var(--violet); }
+.semantic-theme-list span { color: var(--violet); font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.semantic-theme-list strong { font-size: 11px; line-height: 1.35; }
+.semantic-theme-list small { color: var(--slate-500); font-size: 8px; }
+.semantic-detail { min-width: 0; }
+.semantic-heading { min-height: 68px; display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 11px 16px 8px; }
+.semantic-heading > div:first-child > span { color: var(--slate-500); font-size: 8px; text-transform: uppercase; }
+.semantic-heading h3 { margin: 3px 0 0; font-size: 17px; }
+.semantic-terms { max-width: 52%; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.semantic-terms span { padding: 4px 7px; border-radius: 12px; background: #f1ecfb; color: var(--violet); font-size: 8px; }
+.theme-trajectory { width: 100%; height: 250px; display: block; padding: 0 10px; }
+.theme-trajectory line { stroke: #e4e9f0; stroke-width: 1; }
+.theme-trajectory text { fill: var(--slate-500); font-size: 9px; }
+.theme-trajectory polygon { fill: #7a5bd7; opacity: .09; }
+.theme-trajectory polyline { fill: none; stroke: #6e4dca; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.theme-trajectory .change-marker { fill: #fff; stroke: var(--amber); stroke-width: 3; }
+.semantic-explanation-grid { display: grid; grid-template-columns: 1.05fr 1fr .8fr; border-top: 1px solid var(--slate-200); }
+.semantic-explanation-grid > section { min-width: 0; padding: 11px 13px; border-right: 1px solid var(--slate-200); }
+.semantic-explanation-grid > section:last-child { border-right: 0; }
+.semantic-explanation-grid h4 { display: flex; align-items: center; gap: 5px; margin: 0 0 8px; font-size: 10px; }
+.semantic-explanation-grid section > p { margin: 0; color: var(--slate-500); font-size: 9px; line-height: 1.4; }
+.semantic-change { display: grid; grid-template-columns: 17px 55px 1fr; align-items: center; gap: 1px 5px; margin-bottom: 6px; }
+.semantic-change svg { grid-row: 1 / 3; width: 15px; color: var(--amber); }
+.semantic-change strong, .semantic-change span { font-size: 9px; }
+.semantic-change small { grid-column: 2 / 4; color: var(--slate-500); font-size: 8px; }
+.semantic-participant { display: grid; grid-template-columns: minmax(65px, 105px) minmax(45px, 1fr) 35px; align-items: center; gap: 6px; min-height: 22px; }
+.semantic-participant > span { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.semantic-participant > i { height: 5px; background: var(--slate-100); }
+.semantic-participant b { display: block; height: 100%; background: var(--teal); }
+.semantic-participant strong { text-align: right; font-size: 8px; }
+.semantic-evidence-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.semantic-evidence-buttons button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border: 1px solid var(--slate-300); background: #fff; color: #176bb8; font-size: 9px; cursor: pointer; }
+.semantic-evidence-buttons button:hover { border-color: #176bb8; }
+.semantic-evidence-buttons svg { width: 11px; height: 11px; }
+.semantic-empty { min-height: 180px; display: grid; place-items: center; padding: 30px; color: var(--slate-500); font-size: 11px; }
 .rank-bars { padding: 10px 14px; }
 .rank-bars > div { display: grid; grid-template-columns: 115px minmax(70px, 1fr) 43px; align-items: center; gap: 8px; min-height: 25px; }
 .rank-bars span { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
@@ -867,6 +916,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .observatory { padding: 14px; }
   .observatory-kpis { grid-template-columns: repeat(3, 1fr); }
   .observatory-grid.primary, .observatory-grid.secondary, .observatory-grid.tertiary { grid-template-columns: 1fr; }
+  .semantic-layout { grid-template-columns: 210px minmax(0, 1fr); }
+  .semantic-explanation-grid { grid-template-columns: 1fr 1fr; }
+  .semantic-explanation-grid > section:last-child { grid-column: 1 / -1; border-top: 1px solid var(--slate-200); }
   .finding-feed, .role-list { max-height: 280px; }
   .import-button { font-size: 0; }
 }

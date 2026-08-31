@@ -37,17 +37,46 @@ const workspace = {
 
 const observatory = {
   artifact_id: 'artifact-1', content_hash: 'a'.repeat(64), run_id: 'run-1',
-  schema: 'hetaira.observatory-overview.v1', analysis_version: 'observatory-overview@1.0.0',
+  schema: 'hetaira.observatory-overview.v1', analysis_version: 'observatory-overview@1.4.2',
   corpus: { id: 'c1', name: 'Архив команды', language: 'ru', privacy_policy: 'LOCAL_ONLY' },
   snapshot: { id: 'snapshot-12345678', manifest_hash: 'manifestabcdef123456', message_count: 1, created_at: '2025-01-01T00:00:00Z' },
   dimensions: {
-    source: { sessions_8h: 1, participants: 1 },
+    source: { sessions_8h: 1, participants: 1, unresolved_sender_messages: 3 },
     temporal: { monthly_activity: [{ month: '2025-01', messages: 1 }], busiest_month: { month: '2025-01', messages: 1 }, change_points: [], change_method: 'test', partial_month_warning: true },
-    participation: { normalized_entropy: 1, gini: 0, top_1_share: 1, top_10_share: 1, top_participants: [{ participant_id: 'p1', participant: 'Участник 1', messages: 1, share: 1 }], interpretation_guardrail: 'Не влияние.' },
+    participation: { normalized_entropy: 1, gini: 0, top_1_share: 1, top_10_share: 1, top_participants: [{ participant_id: 'p1', participant: 'Иван', messages: 1, share: 1 }], interpretation_guardrail: 'Не влияние.' },
     reply_structure: { resolved_reply_relations: 0, target_resolution_rate: 0, median_response_minutes: 0, p90_response_minutes: 0 },
     network: { participants: 1, directed_dyads: 0, interaction_communities: [], top_nodes: [], interpretation_guardrail: 'Не власть.' },
     roles: { participant_profiles: [] },
     lexical_evolution: { method: 'test', themes: [], guardrail: 'Навигация.' },
+    semantic_themes: {
+      method: 'test', status: 'provisional_semantic_navigation', unit: 'episode_window',
+      structural_episode_count: 4, window_message_limit: 40, episode_count: 8,
+      cluster_count: 2, silhouette: 0.61, separation_quality: 'high',
+      quality_note: 'Темы хорошо разделены.', explained_variance: 0.72,
+      themes: [
+        {
+          theme_id: 0, label: 'терапия · интеграция · поддержка',
+          terms: ['терапия', 'интеграция', 'поддержка'], episodes: 4, messages: 20,
+          trajectory: [
+            { month: '2025-01', messages: 5, share: 0.1 },
+            { month: '2025-02', messages: 15, share: 0.3 },
+          ],
+          change_points: [],
+          top_participants: [{ participant_id: 'p1', participant: 'Иван', messages: 20, share: 1 }],
+          representative_message_ids: ['m1'],
+        },
+        {
+          theme_id: 1, label: 'рецептор · молекула · исследование',
+          terms: ['рецептор', 'молекула', 'исследование'], episodes: 4, messages: 10,
+          trajectory: [
+            { month: '2025-01', messages: 8, share: 0.16 },
+            { month: '2025-02', messages: 2, share: 0.04 },
+          ],
+          change_points: [], top_participants: [], representative_message_ids: ['m1'],
+        },
+      ],
+      change_events: [], guardrail: 'Предварительные темы.',
+    },
     health_primitives: { participation_balance: 1, reply_target_resolution: 0, dyadic_reciprocity: 0, median_response_minutes: 0, missing_dimensions: [] },
     data_quality: {},
   },
@@ -84,7 +113,12 @@ describe('Prometheus workbench', () => {
     expect(await screen.findByLabelText('Многомерный обзор корпуса')).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('Что означает: Сообщения'))
     expect(screen.getByText(/Число сообщений и системных событий/)).toBeVisible()
+    fireEvent.click(screen.getByLabelText('Что означает: Участники'))
+    expect(screen.getByText(/не объединяются в вымышленного участника/)).toBeVisible()
     expect(screen.queryByText('Чаще в первой половине')).not.toBeInTheDocument()
+    expect(screen.getByText('О чём говорили — и когда это менялось')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /рецептор · молекула/ }))
+    expect(screen.getByRole('heading', { name: 'рецептор · молекула · исследование' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Корпусы' }))
     expect(await screen.findByText('Микроскоп анализа')).toBeInTheDocument()
     expect(screen.getByText('Цепочка доказательств')).toBeInTheDocument()
