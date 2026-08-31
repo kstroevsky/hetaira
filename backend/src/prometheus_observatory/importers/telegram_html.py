@@ -54,6 +54,9 @@ class TelegramHTMLParser:
     def iter_messages(self, path: Path) -> Iterator[NormalizedMessage]:
         last_sender_name = "Системное сообщение"
         last_sender_id: str | None = None
+        last_sender_source_name = "Системное сообщение"
+        last_sender_identity_basis = "system"
+        last_sender_run_id: str | None = None
         last_timestamp: datetime | None = None
         current_date: datetime | None = None
         source_index = 0
@@ -109,12 +112,22 @@ class TelegramHTMLParser:
                     ".//div[contains(concat(' ', normalize-space(@class), ' '), ' from_name ')]"
                 )
                 if name_nodes:
-                    last_sender_name = compact_text(name_nodes[0].text_content())
+                    last_sender_source_name = compact_text(name_nodes[0].text_content())
                     photo_sources = node.xpath(
                         ".//div[contains(concat(' ', normalize-space(@class), ' '), "
                         "' userpic_wrap ')]//img/@src"
                     )
-                    last_sender_id = self._sender_id(last_sender_name, photo_sources)
+                    profile_links = name_nodes[0].xpath(".//a/@href")
+                    last_sender_id, last_sender_identity_basis = self._sender_identity(
+                        photo_sources,
+                        profile_links,
+                    )
+                    last_sender_name = last_sender_source_name
+                    last_sender_run_id = (
+                        f"message:{external_id}"
+                        if last_sender_identity_basis == "unresolved_sender_run"
+                        else None
+                    )
                 text_nodes = node.xpath(
                     ".//div[contains(concat(' ', normalize-space(@class), ' '), ' text ')]"
                 )
@@ -153,6 +166,9 @@ class TelegramHTMLParser:
                     metadata={
                         "html_file": page_name,
                         "source_index": source_index,
+                        "source_sender_name": last_sender_source_name,
+                        "sender_identity_basis": last_sender_identity_basis,
+                        "unresolved_sender_run_id": last_sender_run_id,
                         "joined_sender_inherited": "joined" in classes,
                         "reactions": reactions,
                         "forwarded_from": (
@@ -216,12 +232,19 @@ class TelegramHTMLParser:
             return None
 
     @staticmethod
-    def _sender_id(name: str, photo_sources: list[str]) -> str:
+    def _sender_identity(
+        photo_sources: list[str],
+        profile_links: list[str],
+    ) -> tuple[str | None, str]:
         if photo_sources:
             match = re.search(r"author_(\d+)", photo_sources[0])
             if match:
-                return f"user{match.group(1)}"
-        return f"name:{hashlib.sha256(name.casefold().encode()).hexdigest()[:24]}"
+                return f"user{match.group(1)}", "telegram_user_id"
+        for link in profile_links:
+            match = re.match(r"https?://t\.me/([A-Za-z0-9_]{5,})/?$", link)
+            if match:
+                return f"username:{match.group(1).casefold()}", "telegram_username"
+        return None, "unresolved_sender_run"
 
     @staticmethod
     def _reply_target(value: str) -> str | None:

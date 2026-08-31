@@ -312,7 +312,7 @@ class ImportService:
         cache: dict[str, Participant],
         participant_sequence: list[int],
     ) -> tuple[Participant | None, bool]:
-        if external_id is None and display_name == "Системное сообщение":
+        if external_id is None:
             return None, False
         identity_key = external_id or display_name
         if identity_key in cache:
@@ -369,7 +369,11 @@ class ImportService:
             reply_to_external_id=item.reply_to_external_id,
             message_type=item.message_type,
             source_tombstone=item.tombstone,
-            raw_metadata=item.metadata,
+            raw_metadata={
+                **item.metadata,
+                "source_sender_name": item.metadata.get("source_sender_name", item.sender_name),
+                "sender_external_id": item.sender_external_id,
+            },
         )
 
     def _revision(

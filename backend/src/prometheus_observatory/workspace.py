@@ -44,6 +44,15 @@ SECTION_TITLES = {
 }
 
 
+def sender_display_name(message: Message, participant: Participant | None) -> str:
+    if participant is not None:
+        return participant.display_name
+    source_name = (message.raw_metadata or {}).get("source_sender_name")
+    if isinstance(source_name, str) and source_name.strip():
+        return source_name
+    return "Система" if message.message_type == "service" else "Неизвестный отправитель"
+
+
 class WorkspaceService:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -88,8 +97,8 @@ class WorkspaceService:
                 id=message.id,
                 external_id=message.external_id,
                 sender_id=message.sender_id,
-                sender_name=participant.display_name if participant else "Система",
-                sender_initials=initials(participant.display_name if participant else "Система"),
+                sender_name=sender_display_name(message, participant),
+                sender_initials=initials(sender_display_name(message, participant)),
                 sent_at=message.sent_at,
                 text=revision.text,
                 reply_count=reply_counts[message.external_id],
@@ -226,8 +235,8 @@ class WorkspaceService:
                 id=message.id,
                 external_id=message.external_id,
                 sender_id=message.sender_id,
-                sender_name=participant.display_name if participant else "Система",
-                sender_initials=initials(participant.display_name if participant else "Система"),
+                sender_name=sender_display_name(message, participant),
+                sender_initials=initials(sender_display_name(message, participant)),
                 sent_at=message.sent_at,
                 text=revision.text,
             ),
