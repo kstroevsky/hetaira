@@ -4,6 +4,8 @@ import type {
   Corpus,
   Microscope,
   ObservatoryOverview,
+  EpisodeMicroscope,
+  ParticipantIdentityProfile,
   Workspace,
 } from './types'
 
@@ -112,4 +114,18 @@ export function fetchObservatory(corpusId: string): Promise<ObservatoryOverview>
 
 export function buildObservatory(corpusId: string): Promise<ObservatoryOverview> {
   return request(`/api/corpora/${corpusId}/observatory`, { method: 'POST' })
+}
+
+export function fetchParticipantIdentity(
+  participantId: string,
+): Promise<ParticipantIdentityProfile> {
+  return request(`/api/participants/${participantId}/identity`)
+}
+
+export function fetchEpisodeMicroscope(
+  corpusId: string,
+  messageId: string,
+): Promise<EpisodeMicroscope> {
+  const query = new URLSearchParams({ message_id: messageId })
+  return request(`/api/corpora/${corpusId}/episode-microscope?${query}`)
 }

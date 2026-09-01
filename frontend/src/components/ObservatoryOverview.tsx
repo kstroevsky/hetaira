@@ -16,6 +16,7 @@ import {
 import { buildObservatory, fetchObservatory } from '../api/client'
 import type { ObservatoryOverview } from '../api/types'
 import { MetricTip } from './MetricTip'
+import { ParticipantIdentityPopover } from './ParticipantIdentityPopover'
 import { SemanticThemeExplorer } from './SemanticThemeExplorer'
 
 type ObservatoryOverviewProps = {
@@ -252,6 +253,7 @@ function OverviewContent({
       </section>
 
       <SemanticThemeExplorer
+        corpusId={overview.corpus.id}
         analysis={dimensions.semantic_themes}
         onOpenEvidence={onOpenEvidence}
       />
@@ -262,7 +264,11 @@ function OverviewContent({
           <div className="rank-bars">
             {dimensions.participation.top_participants.slice(0, 10).map((participant) => (
               <div key={participant.participant_id}>
-                <span>{participant.participant}</span>
+                <ParticipantIdentityPopover
+                  participantId={participant.participant_id}
+                  name={participant.participant}
+                  onOpenEvidence={onOpenEvidence}
+                />
                 <div><i style={{ width: `${Math.max(participant.share * 100, 1)}%` }} /></div>
                 <strong>{percent.format(participant.share)}</strong>
               </div>
@@ -286,7 +292,7 @@ function OverviewContent({
             <tbody>
               {dimensions.network.top_nodes.slice(0, 7).map((node) => (
                 <tr key={node.participant_id}>
-                  <td>{node.participant}</td><td>{node.pagerank.toFixed(3)}</td>
+                  <td><ParticipantIdentityPopover participantId={node.participant_id} name={node.participant} onOpenEvidence={onOpenEvidence} /></td><td>{node.pagerank.toFixed(3)}</td>
                   <td>{compact.format(node.betweenness)}</td><td>{number.format(node.replies_sent)}</td>
                 </tr>
               ))}
@@ -316,7 +322,11 @@ function OverviewContent({
           <div className="role-list">
             {dimensions.roles.participant_profiles.slice(0, 10).map((role) => (
               <div key={role.participant_id}>
-                <strong>{role.participant}</strong>
+                <ParticipantIdentityPopover
+                  participantId={role.participant_id}
+                  name={role.participant}
+                  onOpenEvidence={onOpenEvidence}
+                />
                 <span>{role.profiles.map((profile) => roleTranslations[profile] ?? profile).join(' · ')}</span>
                 <small>{number.format(role.messages)} сообщений · ответы {percent.format(role.reply_rate)}</small>
               </div>

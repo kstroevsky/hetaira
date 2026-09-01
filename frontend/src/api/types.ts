@@ -171,6 +171,119 @@ export type SemanticTheme = {
   representative_message_ids: string[]
 }
 
+export type ParticipantIdentityProfile = {
+  participant_id: string
+  corpus_id: string
+  display_name: string
+  message_count: number
+  identities: Array<{
+    platform: string
+    source_namespace: string
+    external_id: string
+    display_name: string
+  }>
+  observed_names: Array<{ name: string; messages: number }>
+  identity_basis: Array<{ basis: string; messages: number }>
+  roster_aliases: Array<{
+    external_id: string
+    alias: string
+    evidence_message_ids: string[]
+  }>
+  status: string
+  guardrail: string
+}
+
+export type EpisodeMicroscope = {
+  analysis_version: string
+  status: string
+  corpus_id: string
+  snapshot_id: string
+  window: {
+    episode_id: string
+    episode_title: string
+    window_index: number
+    message_limit: number
+    selected_message_id: string
+    message_count: number
+    start_at: string | null
+    end_at: string | null
+  }
+  messages: Array<{
+    message_id: string
+    external_id: string
+    sender_id: string | null
+    sender: string
+    sent_at: string
+    text: string
+    reply_to_external_id: string | null
+    selected: boolean
+    ordinal: number
+    dialogue_acts: string[]
+    propositions: EpisodeProposition[]
+    grounding: Array<EpisodeGrounding>
+  }>
+  propositions: EpisodeProposition[]
+  stance_edges: Array<{
+    source_message_id: string
+    holder_id: string | null
+    holder: string
+    target_message_id: string
+    target_proposition_id: string | null
+    target_text: string | null
+    position: 'SUPPORT' | 'OPPOSE' | 'ABSTAIN'
+    resolution_status: string
+    alternatives: Array<{ proposition_id: string; text: string }>
+    confidence: number | null
+    evidence: { object_type: string; object_id: string; exact_text: string }
+  }>
+  grounding_events: EpisodeGrounding[]
+  agreement_structure: {
+    support: number
+    oppose: number
+    abstain: number
+    participant_positions: Array<{
+      participant_id: string | null
+      participant: string
+      support: number
+      oppose: number
+      abstain: number
+    }>
+  }
+  guardrail: string
+}
+
+export type EpisodeProposition = {
+  proposition_id: string
+  message_id: string
+  holder_id: string | null
+  holder: string
+  text: string
+  type: string
+  evidence: {
+    object_type: string
+    object_id: string
+    revision_id: string
+    start_codepoint: number
+    end_codepoint: number
+    exact_text: string
+  }
+  status: string
+}
+
+export type EpisodeGrounding = {
+  label: string
+  holder_id: string | null
+  message_id: string
+  evidence: {
+    object_type: string
+    object_id: string
+    revision_id: string
+    start_codepoint: number
+    end_codepoint: number
+    exact_text: string
+  }
+}
+
 export type ObservatoryOverview = {
   artifact_id: string
   content_hash: string

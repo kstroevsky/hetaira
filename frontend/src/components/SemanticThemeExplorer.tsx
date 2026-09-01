@@ -1,12 +1,15 @@
 import { useState } from 'react'
-import { AlertTriangle, ArrowDownRight, ArrowUpRight, ExternalLink } from 'lucide-react'
+import { AlertTriangle, ArrowDownRight, ArrowUpRight, ExternalLink, ScanSearch } from 'lucide-react'
 
 import type { ObservatoryOverview, SemanticTheme } from '../api/types'
+import { EpisodeMicroscope } from './EpisodeMicroscope'
 import { MetricTip } from './MetricTip'
+import { ParticipantIdentityPopover } from './ParticipantIdentityPopover'
 
 type SemanticAnalysis = ObservatoryOverview['dimensions']['semantic_themes']
 
 type SemanticThemeExplorerProps = {
+  corpusId: string
   analysis: SemanticAnalysis
   onOpenEvidence: (messageId: string) => void
 }
@@ -76,10 +79,12 @@ function ThemeTrajectory({ theme }: { theme: SemanticTheme }) {
 }
 
 export function SemanticThemeExplorer({
+  corpusId,
   analysis,
   onOpenEvidence,
 }: SemanticThemeExplorerProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [microscopeMessageId, setMicroscopeMessageId] = useState<string | null>(null)
   const themes = analysis?.themes ?? []
   const selected = themes.find((theme) => theme.theme_id === selectedId) ?? themes[0]
 
@@ -121,7 +126,8 @@ export function SemanticThemeExplorer({
           Семантический слой отсутствует в этом аналитическом снимке. Пересчитайте обзор новой версией.
         </div>
       ) : (
-        <div className="semantic-layout">
+        <>
+          <div className="semantic-layout">
           <nav className="semantic-theme-list" aria-label="Автоматические темы">
             {themes.map((theme, index) => (
               <button
@@ -129,7 +135,10 @@ export function SemanticThemeExplorer({
                 key={theme.theme_id}
                 className={theme.theme_id === selected.theme_id ? 'active' : ''}
                 aria-pressed={theme.theme_id === selected.theme_id}
-                onClick={() => setSelectedId(theme.theme_id)}
+                onClick={() => {
+                  setSelectedId(theme.theme_id)
+                  setMicroscopeMessageId(null)
+                }}
               >
                 <span>Тема {index + 1}</span>
                 <strong>{theme.label}</strong>
@@ -182,7 +191,11 @@ export function SemanticThemeExplorer({
                 </h4>
                 {selected.top_participants.slice(0, 6).map((participant) => (
                   <div className="semantic-participant" key={participant.participant_id}>
-                    <span>{participant.participant}</span>
+                    <ParticipantIdentityPopover
+                      participantId={participant.participant_id}
+                      name={participant.participant}
+                      onOpenEvidence={onOpenEvidence}
+                    />
                     <i><b style={{ width: `${Math.max(participant.share * 100, 1)}%` }} /></i>
                     <strong>{percent.format(participant.share)}</strong>
                   </div>
@@ -198,15 +211,29 @@ export function SemanticThemeExplorer({
                 </h4>
                 <div className="semantic-evidence-buttons">
                   {selected.representative_message_ids.map((messageId, index) => (
-                    <button type="button" key={messageId} onClick={() => onOpenEvidence(messageId)}>
-                      Пример {index + 1}<ExternalLink />
-                    </button>
+                    <div key={messageId}>
+                      <button type="button" onClick={() => setMicroscopeMessageId(messageId)}>
+                        Разобрать {index + 1}<ScanSearch />
+                      </button>
+                      <button type="button" onClick={() => onOpenEvidence(messageId)}>
+                        Источник<ExternalLink />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </section>
             </div>
           </div>
-        </div>
+          </div>
+          {microscopeMessageId ? (
+            <EpisodeMicroscope
+              corpusId={corpusId}
+              messageId={microscopeMessageId}
+              onClose={() => setMicroscopeMessageId(null)}
+              onOpenEvidence={onOpenEvidence}
+            />
+          ) : null}
+        </>
       )}
       <p className="guardrail"><AlertTriangle /> {analysis?.guardrail ?? 'Слой ещё не рассчитан.'}</p>
     </section>

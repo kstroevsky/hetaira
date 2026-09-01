@@ -83,10 +83,34 @@ const observatory = {
   findings: [], measurement_result_ids: {}, epistemic_status: 'descriptive_provisional', generated_at: '2025-01-01T00:00:00Z',
 }
 
+const identityProfile = {
+  participant_id: 'p1', corpus_id: 'c1', display_name: 'Иван', message_count: 20,
+  identities: [{ platform: 'telegram_html', source_namespace: 'test', external_id: 'user42', display_name: 'Иван' }],
+  observed_names: [{ name: 'Иван', messages: 20 }],
+  identity_basis: [{ basis: 'telegram_user_id', messages: 20 }],
+  roster_aliases: [{ external_id: 'user42', alias: 'Иван Старый', evidence_message_ids: ['m1'] }],
+  status: 'source_backed', guardrail: 'Псевдоним подтверждён источником.',
+}
+
+const episodeMicroscope = {
+  analysis_version: 'episode-microscope-rules-ru@0.1.0', status: 'provisional_rules',
+  corpus_id: 'c1', snapshot_id: 'snapshot-12345678',
+  window: { episode_id: 'e1', episode_title: 'Эпизод 1', window_index: 0, message_limit: 40, selected_message_id: 'm1', message_count: 1, start_at: '2025-01-01T09:00:00Z', end_at: '2025-01-01T09:00:00Z' },
+  messages: [{ message_id: 'm1', external_id: '1', sender_id: 'p1', sender: 'Иван', sent_at: '2025-01-01T09:00:00Z', text: 'Давайте проверим стенд.', reply_to_external_id: null, selected: true, ordinal: 0, dialogue_acts: ['PROPOSE'], propositions: [], grounding: [] }],
+  propositions: [{ proposition_id: 'pr1', message_id: 'm1', holder_id: 'p1', holder: 'Иван', text: 'Давайте проверим стенд', type: 'proposal', evidence: { object_type: 'message', object_id: 'm1', revision_id: 'r1', start_codepoint: 0, end_codepoint: 23, exact_text: 'Давайте проверим стенд.' }, status: 'provisional_rules' }],
+  stance_edges: [], grounding_events: [],
+  agreement_structure: { support: 0, oppose: 0, abstain: 0, participant_positions: [] },
+  guardrail: 'Предварительный разбор.',
+}
+
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
-    const data = url.includes('/observatory')
+    const data = url.includes('/episode-microscope')
+      ? episodeMicroscope
+      : url.includes('/participants/')
+      ? identityProfile
+      : url.includes('/observatory')
       ? observatory
       : url.includes('/annotation-sets')
       ? []
@@ -119,6 +143,11 @@ describe('Prometheus workbench', () => {
     expect(screen.getByText('О чём говорили — и когда это менялось')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /рецептор · молекула/ }))
     expect(screen.getByRole('heading', { name: 'рецептор · молекула · исследование' })).toBeVisible()
+    fireEvent.click(screen.getAllByLabelText('Идентичность участника: Иван')[0])
+    expect(await screen.findByText('Иван Старый')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: /Разобрать 1/ }))
+    expect(await screen.findByLabelText('Микроскоп эпизода')).toBeVisible()
+    expect(await screen.findByText('Давайте проверим стенд')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Корпусы' }))
     expect(await screen.findByText('Микроскоп анализа')).toBeInTheDocument()
     expect(screen.getByText('Цепочка доказательств')).toBeInTheDocument()
