@@ -5,9 +5,16 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from prometheus_observatory.identity import ParticipantIdentityService
 from prometheus_observatory.importers import ImportService
 from prometheus_observatory.importers.telegram_html import TelegramHTMLParser
-from prometheus_observatory.models import Corpus, Message, Participant, ResponseRelation
+from prometheus_observatory.models import (
+    Corpus,
+    Message,
+    Participant,
+    ParticipantIdentity,
+    ResponseRelation,
+)
 from prometheus_observatory.object_store import ContentAddressedStore
 from prometheus_observatory.workspace import WorkspaceService
 
@@ -72,6 +79,11 @@ def write_export(root: Path) -> None:
         <div class="pull_right date details" title="17 June 2024, 12:09:00">12:09</div>
         <div class="from_name">Early Bird</div><div class="text">Сообщение без фотографии.</div>
         </div></div>
+        <div class="message default clearfix" id="message12"><div class="pull_left userpic_wrap">
+        <img src="photos/author_1825173773.jpg"></div><div class="body">
+        <div class="pull_right date details" title="17 June 2024, 12:10:00">12:10</div>
+        <div class="from_name">Undefined</div><div class="text">Сообщение после смены имени.</div>
+        </div></div>
         </body></html>""",
         encoding="utf-8",
     )
@@ -98,6 +110,7 @@ def test_html_parser_preserves_joined_sender_reply_service_and_missing_media(
         "9",
         "10",
         "11",
+        "12",
     ]
     assert messages[1].sender_external_id == messages[0].sender_external_id == "user42"
     assert messages[1].reply_to_external_id == "1"
@@ -118,6 +131,7 @@ def test_html_parser_preserves_joined_sender_reply_service_and_missing_media(
     assert messages[7].metadata["sender_identity_basis"] == "telegram_username"
     assert messages[10].sender_external_id == "user5331440637"
     assert messages[10].metadata["sender_identity_basis"] == "source_directory_mapping"
+    assert messages[11].sender_external_id == "user1825173773"
 
 
 def test_html_directory_is_content_addressed_and_importable(
@@ -144,13 +158,23 @@ def test_html_directory_is_content_addressed_and_importable(
         "application/x-tar",
         "telegram_html",
     )
-    assert result.imported_messages == 11
-    assert db_session.scalar(select(func.count()).select_from(Participant)) == 5
-    assert db_session.scalar(select(func.count()).select_from(Message)) == 11
+    assert result.imported_messages == 12
+    assert db_session.scalar(select(func.count()).select_from(Participant)) == 6
+    assert db_session.scalar(select(func.count()).select_from(Message)) == 12
     unresolved = db_session.scalar(select(Message).where(Message.external_id == "5"))
     assert unresolved is not None and unresolved.sender_id is None
     assert unresolved.raw_metadata["unresolved_sender_run_id"] == "message:5"
     rendered = {item.external_id: item for item in WorkspaceService(db_session).messages(corpus.id)}
     assert rendered["5"].sender_name == "Deleted Account"
+    undefined_identity = db_session.scalar(
+        select(ParticipantIdentity).where(ParticipantIdentity.external_id == "user1825173773")
+    )
+    assert undefined_identity is not None
+    identity_profile = ParticipantIdentityService(db_session).profile(
+        undefined_identity.participant_id
+    )
+    assert identity_profile["observed_names"] == [{"name": "Undefined", "messages": 1}]
+    assert identity_profile["roster_aliases"][0]["alias"] == "Людвиг"
+    assert identity_profile["roster_aliases"][0]["evidence_message_ids"]
     relation = db_session.scalar(select(ResponseRelation))
     assert relation is not None and relation.explicit is True

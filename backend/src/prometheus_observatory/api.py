@@ -9,7 +9,9 @@ from .analyzer import DeterministicAnalyzer
 from .annotation_workbench import AnnotationWorkbenchService
 from .config import get_settings
 from .database import get_session
+from .episode_microscope import EpisodeMicroscopeService
 from .evaluation import evaluate_frozen_set
+from .identity import ParticipantIdentityService
 from .importers import ImportService
 from .models import (
     AnalysisRun,
@@ -149,6 +151,29 @@ def build_observatory(corpus_id: str, session: Session = Depends(get_session)) -
         "run_id": artifact.run_id,
         **artifact.payload,
     }
+
+
+@router.get("/participants/{participant_id}/identity")
+def get_participant_identity(
+    participant_id: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        return ParticipantIdentityService(session).profile(participant_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/episode-microscope")
+def get_episode_microscope(
+    corpus_id: str,
+    message_id: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        return EpisodeMicroscopeService(session).inspect(corpus_id, message_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
 
 
 @router.get("/corpora/{corpus_id}/messages", response_model=list[MessageListItem])
