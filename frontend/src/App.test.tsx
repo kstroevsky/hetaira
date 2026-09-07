@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from './App'
 
@@ -126,6 +126,8 @@ beforeEach(() => {
   }))
 })
 
+afterEach(() => cleanup())
+
 describe('Prometheus workbench', () => {
   it('renders the evidence-first workspace', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -164,6 +166,56 @@ describe('Prometheus workbench', () => {
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Разметка' }))
     expect(await screen.findByText('Русский пилот разметки ещё не создан')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Создать gold-ru-v0' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Создать gold-ru-v1' })).toBeEnabled()
+  })
+
+  it('shows full-set gold-ru-v1 validation statistics', async () => {
+    const annotationSet = {
+      id: 'set-v1', corpus_id: 'c1', snapshot_id: 'snapshot-12345678', name: 'gold-ru-v1',
+      language: 'ru', codebook_key: 'foundational-conversation-ru', codebook_version: '0.1.0',
+      codebook_artifact_hash: 'hash', status: 'draft', target_size: 1200,
+      sampling_spec: { double_annotation_fraction: 0.3 }, manifest_hash: null,
+      frozen_at: null, created_at: '2025-01-01T00:00:00Z',
+    }
+    const statistics = {
+      annotation_set_id: 'set-v1', name: 'gold-ru-v1', status: 'draft', target_size: 1200,
+      total_units: 1200, status_counts: { pending: 1190, reviewed: 10 },
+      split_counts: { train: 720, development: 240, test: 240 }, difficult_units: 600,
+      confirmed_units: 10, coverage_by_kind: { proposition: 10 },
+      double_annotation: { required: 360, completed: 4, fraction: 0.3 },
+      agreement: { comparable_unit_kinds: 4, exact: 3, raw_rate: 0.75 },
+      freeze_ready: false, manifest_hash: null,
+    }
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      const data = url.includes('/statistics')
+        ? statistics
+        : url.includes('/units')
+        ? { items: [], next_ordinal: null }
+        : url.includes('/annotation-sets')
+        ? [annotationSet]
+        : url.includes('/observatory')
+        ? observatory
+        : url.includes('/api/corpora')
+        ? [workspace.corpus]
+        : url.includes('/microscope')
+        ? workspace.microscope
+        : workspace
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <App />
+      </QueryClientProvider>,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Разметка' }))
+    expect(await screen.findByLabelText('Контроль научной валидации')).toBeVisible()
+    expect(await screen.findByText('720 / 240 / 240')).toBeVisible()
+    expect(screen.getByText('4 / 360')).toBeVisible()
+    expect(screen.getByText('75%')).toBeVisible()
   })
 })

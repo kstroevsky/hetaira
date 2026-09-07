@@ -103,6 +103,31 @@ export type AnnotationSet = {
   created_at: string
 }
 
+export type AnnotationSetStatistics = {
+  annotation_set_id: string
+  name: string
+  status: string
+  target_size: number
+  total_units: number
+  status_counts: Record<string, number>
+  split_counts: Record<string, number>
+  difficult_units: number
+  confirmed_units: number
+  coverage_by_kind: Record<string, number>
+  double_annotation: {
+    required: number
+    completed: number
+    fraction: number
+  }
+  agreement: {
+    comparable_unit_kinds: number
+    exact: number
+    raw_rate: number | null
+  }
+  freeze_ready: boolean
+  manifest_hash: string | null
+}
+
 export type UnitAnnotation = {
   id: string
   kind: string

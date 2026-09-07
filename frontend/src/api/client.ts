@@ -1,5 +1,6 @@
 import type {
   AnnotationSet,
+  AnnotationSetStatistics,
   AnnotationUnit,
   Corpus,
   Microscope,
@@ -48,10 +49,10 @@ export function fetchAnnotationSets(corpusId: string): Promise<AnnotationSet[]> 
   return request(`/api/corpora/${corpusId}/annotation-sets`)
 }
 
-export function createGoldPilot(
+export function createGoldV1(
   corpusId: string,
   snapshotId: string,
-  targetSize = 200,
+  targetSize = 1200,
 ): Promise<AnnotationSet> {
   return request('/api/annotation-sets', {
     method: 'POST',
@@ -59,13 +60,20 @@ export function createGoldPilot(
     body: JSON.stringify({
       corpus_id: corpusId,
       snapshot_id: snapshotId,
-      name: 'gold-ru-v0',
+      name: 'gold-ru-v1',
       target_size: targetSize,
       codebook_key: 'foundational-conversation-ru',
       codebook_version: '0.1.0',
-      seed: 'gold-ru-v0',
+      seed: 'gold-ru-v1',
+      double_annotation_fraction: 0.3,
     }),
   })
+}
+
+export function fetchAnnotationSetStatistics(
+  annotationSetId: string,
+): Promise<AnnotationSetStatistics> {
+  return request(`/api/annotation-sets/${annotationSetId}/statistics`)
 }
 
 export async function fetchAnnotationUnits(annotationSetId: string): Promise<AnnotationUnit[]> {
