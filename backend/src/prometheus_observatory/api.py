@@ -342,6 +342,17 @@ def list_annotation_units(
     return {"items": units, "next_ordinal": units[-1]["ordinal"] if units else None}
 
 
+@router.get("/annotation-sets/{annotation_set_id}/statistics")
+def annotation_set_statistics(
+    annotation_set_id: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        return AnnotationWorkbenchService(session).statistics(annotation_set_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
 @router.post("/annotation-units/{unit_id}/annotations")
 def add_manual_annotation(
     unit_id: str,

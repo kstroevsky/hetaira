@@ -64,7 +64,10 @@ PROMETHEUS_DATABASE_URL=postgresql+psycopg://prometheus:prometheus@localhost:543
 Create and inspect the Russian gold pilot (also available through the **Разметка** UI):
 
 ```bash
-.venv/bin/python scripts/gold_ru_pilot.py create --target-size 200
+.venv/bin/python scripts/gold_ru_pilot.py create \
+  --target-size 1200 \
+  --name gold-ru-v1 \
+  --double-annotation-fraction 0.3
 .venv/bin/python scripts/gold_ru_pilot.py status <annotation-set-id>
 .venv/bin/python scripts/gold_ru_pilot.py export <annotation-set-id> --output gold-ru-v0.json
 ```

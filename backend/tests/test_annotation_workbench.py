@@ -22,7 +22,13 @@ from prometheus_observatory.object_store import ContentAddressedStore
 FIXTURE = Path(__file__).parent / "fixtures" / "telegram.json"
 
 
-def annotation_set(session: Session, tmp_path: Path):
+def annotation_set(
+    session: Session,
+    tmp_path: Path,
+    *,
+    name: str = "gold-ru-v0",
+    double_annotation_fraction: float = 0,
+):
     register_codebooks(session)
     corpus = Corpus(name="Gold pilot", language="ru", privacy_policy="LOCAL_ONLY")
     session.add(corpus)
@@ -35,12 +41,69 @@ def annotation_set(session: Session, tmp_path: Path):
     created = AnnotationWorkbenchService(session).create_set(
         corpus_id=corpus.id,
         snapshot_id=imported.snapshot_id,
-        name="gold-ru-v0",
+        name=name,
         target_size=2,
         codebook_key="foundational-conversation-ru",
         codebook_version="0.1.0",
+        double_annotation_fraction=double_annotation_fraction,
     )
     return created
+
+
+def test_gold_v1_enforces_deterministic_double_annotation_cohort(
+    db_session: Session, tmp_path: Path
+) -> None:
+    created = annotation_set(
+        db_session,
+        tmp_path,
+        name="gold-ru-v1",
+        double_annotation_fraction=0.5,
+    )
+    service = AnnotationWorkbenchService(db_session)
+    units = service.list_units(created.id)
+    double_units = [unit for unit in units if unit["strata"]["double_annotation_required"]]
+    assert len(double_units) == 1
+    assert created.sampling_spec["double_annotation_required"] == 1
+
+    for unit in units:
+        annotation = service.add_annotation(
+            unit["id"],
+            kind="proposition",
+            value={"type": "claim", "text": unit["text"]},
+            spans=[{"start_codepoint": 0, "end_codepoint": len(unit["text"])}],
+            annotator="annotator-a",
+        )
+        service.review(annotation.id, decision="confirmed", reviewer="reviewer-a")
+    statistics = service.statistics(created.id)
+    assert statistics["total_units"] == 2
+    assert statistics["confirmed_units"] == 2
+    assert statistics["double_annotation"] == {
+        "required": 1,
+        "completed": 0,
+        "fraction": 0.5,
+    }
+    assert statistics["freeze_ready"] is False
+    with pytest.raises(ValueError, match="two confirmed annotators"):
+        service.freeze(created.id)
+
+    double_unit = double_units[0]
+    second = service.add_annotation(
+        double_unit["id"],
+        kind="proposition",
+        value={"type": "claim", "text": double_unit["text"]},
+        spans=[{"start_codepoint": 0, "end_codepoint": len(double_unit["text"])}],
+        annotator="annotator-b",
+    )
+    service.review(second.id, decision="confirmed", reviewer="reviewer-b")
+    statistics = service.statistics(created.id)
+    assert statistics["double_annotation"]["completed"] == 1
+    assert statistics["agreement"] == {
+        "comparable_unit_kinds": 1,
+        "exact": 1,
+        "raw_rate": 1,
+    }
+    assert statistics["freeze_ready"] is True
+    assert service.freeze(created.id).status == "frozen"
 
 
 def test_annotation_set_requires_review_before_cryptographic_freeze(

@@ -25,7 +25,12 @@ def resolve_corpus(session, corpus_id: str | None) -> Corpus:
     return corpus
 
 
-def create(corpus_id: str | None, target_size: int) -> dict:
+def create(
+    corpus_id: str | None,
+    target_size: int,
+    name: str,
+    double_annotation_fraction: float,
+) -> dict:
     with SessionLocal() as session:
         register_codebooks(session)
         corpus = resolve_corpus(session, corpus_id)
@@ -39,22 +44,22 @@ def create(corpus_id: str | None, target_size: int) -> dict:
         annotation_set = AnnotationWorkbenchService(session).create_set(
             corpus_id=corpus.id,
             snapshot_id=snapshot.id,
-            name="gold-ru-v0",
+            name=name,
             target_size=target_size,
             codebook_key="foundational-conversation-ru",
             codebook_version="0.1.0",
-            seed="gold-ru-v0",
+            seed=name,
+            double_annotation_fraction=double_annotation_fraction,
         )
-        units = AnnotationWorkbenchService(session).list_units(
-            annotation_set.id, limit=200
-        )
+        statistics = AnnotationWorkbenchService(session).statistics(annotation_set.id)
         return {
             "annotation_set_id": annotation_set.id,
             "corpus_id": corpus.id,
             "snapshot_id": snapshot.id,
             "requested_units": target_size,
-            "sampled_units": len(units),
-            "splits": dict(Counter(unit["split"] for unit in units)),
+            "sampled_units": statistics["total_units"],
+            "splits": statistics["split_counts"],
+            "double_annotation": statistics["double_annotation"],
             "status": annotation_set.status,
         }
 
@@ -103,11 +108,13 @@ def export(annotation_set_id: str, output: Path) -> dict:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Manage the gold-ru-v0 pilot")
+    parser = argparse.ArgumentParser(description="Manage a Russian gold annotation set")
     subparsers = parser.add_subparsers(dest="command", required=True)
     create_parser = subparsers.add_parser("create")
     create_parser.add_argument("--corpus-id")
-    create_parser.add_argument("--target-size", type=int, default=200)
+    create_parser.add_argument("--target-size", type=int, default=1200)
+    create_parser.add_argument("--name", default="gold-ru-v1")
+    create_parser.add_argument("--double-annotation-fraction", type=float, default=0.3)
     status_parser = subparsers.add_parser("status")
     status_parser.add_argument("annotation_set_id")
     export_parser = subparsers.add_parser("export")
@@ -115,7 +122,12 @@ if __name__ == "__main__":
     export_parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
     if arguments.command == "create":
-        result = create(arguments.corpus_id, arguments.target_size)
+        result = create(
+            arguments.corpus_id,
+            arguments.target_size,
+            arguments.name,
+            arguments.double_annotation_fraction,
+        )
     elif arguments.command == "status":
         result = status(arguments.annotation_set_id)
     else:

@@ -24,3 +24,9 @@ Phase 2 completes deletion lineage, resumable task operations, artifact retentio
 - Any failed task remains `provisional` and cannot feed an unqualified composite finding.
 - Forecasting uses forward-time validation only.
 - Pivotalness cannot ship before the associated forecaster is calibrated and prospectively validated.
+
+## Gold-set operational contract
+
+`gold-ru-v1` stores the exact 30% double-annotation cohort on each unit as `double_annotation_required`. Membership is a deterministic hash of the frozen snapshot object identity and the set seed. Complete episode groups are assigned to exactly one split; the validation cockpit reports authoritative full-set counts rather than the paginated annotation queue.
+
+Freezing requires at least one confirmed annotation for every unit and two distinct confirmed annotators for every DOUBLE unit. The cockpit exposes confirmed-unit coverage, 60/20/20 split counts, double-annotation completion, difficult-case count, and exact raw agreement over comparable unit×kind pairs. Raw agreement is diagnostic only and does not replace the planned human-agreement statistic or promotion thresholds.

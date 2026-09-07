@@ -77,6 +77,7 @@ class AnnotationSetCreate(BaseModel):
     codebook_key: str = "foundational-conversation-ru"
     codebook_version: str = "0.1.0"
     seed: str = "gold-ru-v0"
+    double_annotation_fraction: float = Field(default=0, ge=0, le=1)
 
 
 class AnnotationSetRead(ORMModel):

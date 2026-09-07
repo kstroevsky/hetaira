@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
@@ -48,6 +48,7 @@ class AnnotationWorkbenchService:
         codebook_key: str,
         codebook_version: str,
         seed: str = "gold-ru-v0",
+        double_annotation_fraction: float = 0,
     ) -> AnnotationSet:
         corpus = self.session.get(Corpus, corpus_id)
         snapshot = self.session.get(CorpusSnapshot, snapshot_id)
@@ -66,6 +67,7 @@ class AnnotationWorkbenchService:
         if existing is not None:
             if existing.status == "draft":
                 self._rebalance_splits(existing)
+                self._assign_double_annotation(existing)
                 self.session.commit()
             return existing
         release, artifact_hash = release_identity(self.session, codebook_key, codebook_version)
@@ -104,6 +106,7 @@ class AnnotationWorkbenchService:
                 "target_size": target_size,
                 "split_group": "episode_or_conversation",
                 "split_ratio": {"train": 0.6, "development": 0.2, "test": 0.2},
+                "double_annotation_fraction": double_annotation_fraction,
             },
         )
         self.session.add_all([run, annotation_set])
@@ -127,8 +130,112 @@ class AnnotationWorkbenchService:
             self.session.add(annotation_unit)
         self.session.flush()
         self._rebalance_splits(annotation_set)
+        self._assign_double_annotation(annotation_set)
         self.session.commit()
         return annotation_set
+
+    def statistics(self, annotation_set_id: str) -> dict[str, Any]:
+        annotation_set = self._set(annotation_set_id)
+        units = list(
+            self.session.scalars(
+                select(AnnotationUnit)
+                .where(AnnotationUnit.annotation_set_id == annotation_set.id)
+                .order_by(AnnotationUnit.ordinal)
+            )
+        )
+        links = list(
+            self.session.scalars(
+                select(AnnotationSetAnnotation).where(
+                    AnnotationSetAnnotation.annotation_set_id == annotation_set.id
+                )
+            )
+        )
+        annotations = {
+            annotation.id: annotation
+            for annotation_id in {link.annotation_id for link in links}
+            if (annotation := self.session.get(Annotation, annotation_id)) is not None
+        }
+        reviews: dict[str, AnnotationReview] = {}
+        if annotations:
+            for review in self.session.scalars(
+                select(AnnotationReview)
+                .where(AnnotationReview.annotation_id.in_(annotations))
+                .order_by(
+                    AnnotationReview.annotation_id,
+                    AnnotationReview.reviewed_at.desc(),
+                    AnnotationReview.id.desc(),
+                )
+            ):
+                reviews.setdefault(review.annotation_id, review)
+        confirmed_by_unit: dict[str, list[Annotation]] = defaultdict(list)
+        coverage_by_kind: Counter[str] = Counter()
+        agreement_groups: dict[tuple[str, str], dict[str, str]] = defaultdict(dict)
+        for link in links:
+            annotation = annotations.get(link.annotation_id)
+            review = reviews.get(link.annotation_id)
+            if (
+                annotation is None
+                or annotation.superseded_by
+                or review is None
+                or review.decision != "confirmed"
+            ):
+                continue
+            confirmed_by_unit[link.unit_id].append(annotation)
+            coverage_by_kind[annotation.kind] += 1
+            annotator = str(annotation.provenance.get("model", "unknown"))
+            agreement_groups[(link.unit_id, annotation.kind)][annotator] = json.dumps(
+                annotation.value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        agreement_total = 0
+        agreement_equal = 0
+        for values_by_annotator in agreement_groups.values():
+            if len(values_by_annotator) < 2:
+                continue
+            agreement_total += 1
+            agreement_equal += int(len(set(values_by_annotator.values())) == 1)
+        double_units = [
+            unit for unit in units if bool(unit.strata.get("double_annotation_required"))
+        ]
+        double_completed = 0
+        for unit in double_units:
+            annotators = {
+                str(annotation.provenance.get("model", "unknown"))
+                for annotation in confirmed_by_unit.get(unit.id, [])
+            }
+            double_completed += int(len(annotators) >= 2)
+        status_counts = Counter(unit.status for unit in units)
+        split_counts = Counter(unit.split for unit in units)
+        return {
+            "annotation_set_id": annotation_set.id,
+            "name": annotation_set.name,
+            "status": annotation_set.status,
+            "target_size": annotation_set.target_size,
+            "total_units": len(units),
+            "status_counts": dict(status_counts),
+            "split_counts": dict(split_counts),
+            "difficult_units": sum(bool(unit.strata.get("difficult")) for unit in units),
+            "confirmed_units": len(confirmed_by_unit),
+            "coverage_by_kind": dict(coverage_by_kind),
+            "double_annotation": {
+                "required": len(double_units),
+                "completed": double_completed,
+                "fraction": annotation_set.sampling_spec.get("double_annotation_fraction", 0),
+            },
+            "agreement": {
+                "comparable_unit_kinds": agreement_total,
+                "exact": agreement_equal,
+                "raw_rate": agreement_equal / agreement_total if agreement_total else None,
+            },
+            "freeze_ready": (
+                bool(units)
+                and len(confirmed_by_unit) == len(units)
+                and double_completed == len(double_units)
+            ),
+            "manifest_hash": annotation_set.manifest_hash,
+        }
 
     def _candidate_units(
         self, snapshot_id: str, target_size: int, seed: str
@@ -312,11 +419,19 @@ class AnnotationWorkbenchService:
         )
         manifest: list[dict[str, Any]] = []
         missing: list[int] = []
+        missing_double: list[int] = []
         for unit in units:
             confirmed = self._confirmed_annotations(annotation_set.id, unit.id)
             if not confirmed:
                 missing.append(unit.ordinal)
                 continue
+            if unit.strata.get("double_annotation_required"):
+                annotators = {
+                    str(annotation.provenance.get("model", "unknown")) for annotation in confirmed
+                }
+                if len(annotators) < 2:
+                    missing_double.append(unit.ordinal)
+                    continue
             revision = self.session.get(MessageRevision, unit.revision_id)
             if revision is None:
                 raise RuntimeError("annotation unit revision is missing")
@@ -342,6 +457,11 @@ class AnnotationWorkbenchService:
         if missing:
             preview = ", ".join(str(value) for value in missing[:10])
             raise ValueError(f"all units require a confirmed annotation; missing: {preview}")
+        if missing_double:
+            preview = ", ".join(str(value) for value in missing_double[:10])
+            raise ValueError(
+                f"double-annotation units require two confirmed annotators; missing: {preview}"
+            )
         encoded = json.dumps(
             manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         ).encode()
@@ -539,6 +659,32 @@ class AnnotationWorkbenchService:
             **annotation_set.sampling_spec,
             "strategy": "deterministic-stratified-group-balanced-v2",
             "actual_split_counts": assigned,
+        }
+
+    def _assign_double_annotation(self, annotation_set: AnnotationSet) -> None:
+        units = list(
+            self.session.scalars(
+                select(AnnotationUnit).where(AnnotationUnit.annotation_set_id == annotation_set.id)
+            )
+        )
+        fraction = float(annotation_set.sampling_spec.get("double_annotation_fraction", 0))
+        required = round(len(units) * fraction)
+        seed = str(annotation_set.sampling_spec.get("seed", "gold-ru-v0"))
+        ranked = sorted(
+            units,
+            key=lambda unit: hashlib.sha256(
+                f"{seed}:double-annotation:{unit.object_id}".encode()
+            ).hexdigest(),
+        )
+        selected = {unit.id for unit in ranked[:required]}
+        for unit in units:
+            unit.strata = {
+                **unit.strata,
+                "double_annotation_required": unit.id in selected,
+            }
+        annotation_set.sampling_spec = {
+            **annotation_set.sampling_spec,
+            "double_annotation_required": required,
         }
 
     @staticmethod
