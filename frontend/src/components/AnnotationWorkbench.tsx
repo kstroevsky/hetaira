@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DatabaseZap } from 'lucide-react'
-import { useState } from 'react'
+import { useReducer, useState } from 'react'
 
 import {
   createReferencePilot,
@@ -13,9 +13,37 @@ import {
   reviewManualAnnotation,
   submitTaskJudgment,
 } from '../api/client'
+import type { JudgmentAnnotationDraft } from '../api/types'
 import { AnnotationDesk } from './AnnotationDesk'
 type AnnotationWorkbenchProps = {
   corpusId: string
+}
+
+type DraftState = {
+  items: JudgmentAnnotationDraft[]
+  error: string
+  nextId: number
+}
+
+type DraftAction =
+  | { type: 'add'; annotation: Omit<JudgmentAnnotationDraft, 'draft_id'> }
+  | { type: 'remove'; draftId: number }
+  | { type: 'error'; message: string }
+  | { type: 'clear' }
+
+function reduceDrafts(state: DraftState, action: DraftAction): DraftState {
+  if (action.type === 'add') {
+    return {
+      items: [...state.items, { ...action.annotation, draft_id: state.nextId }],
+      error: '',
+      nextId: state.nextId + 1,
+    }
+  }
+  if (action.type === 'remove') {
+    return { ...state, items: state.items.filter((item) => item.draft_id !== action.draftId) }
+  }
+  if (action.type === 'error') return { ...state, error: action.message }
+  return { items: [], error: '', nextId: state.nextId }
 }
 
 function annotationValue(
@@ -33,8 +61,9 @@ function annotationValue(
   if (kind === 'stance') return {
     position: label || 'support',
     holder_id: holderId,
-    target_type: 'message',
-    target_id: targetMessageId,
+    target_type: targetMessageId ? 'message' : 'span',
+    target_id: targetMessageId
+      ?? (sourceRevisionId ? `${sourceRevisionId}:${start}:${end}` : undefined),
   }
   if (kind === 'epistemic_state') return {
     label: (label || 'COMMITTED').toUpperCase(),
@@ -49,8 +78,8 @@ function annotationValue(
   }
   if (kind === 'argumentation') return {
     relation_type: (label || 'SUPPORTS').toUpperCase(),
-    source_type: 'message',
-    source_id: sourceMessageId,
+    source_type: 'span',
+    source_id: sourceRevisionId ? `${sourceRevisionId}:${start}:${end}` : sourceMessageId,
     target_type: 'message',
     target_id: targetMessageId,
   }
@@ -71,6 +100,7 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
   const [judgmentStatus, setJudgmentStatus] = useState<'PRESENT' | 'ABSENT' | 'ABSTAIN'>(
     'PRESENT',
   )
+  const [drafts, dispatchDraft] = useReducer(reduceDrafts, { items: [], error: '', nextId: 1 })
 
   const setsQuery = useQuery({
     queryKey: ['annotation-sets', corpusId],
@@ -98,6 +128,35 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
     enabled: Boolean(selectedUnit && usesTaskJudgments),
   })
 
+  const buildCurrentAnnotation = (): Omit<JudgmentAnnotationDraft, 'draft_id'> => {
+    if (!selectedUnit) throw new Error('Выберите единицу разметки')
+    const safeEnd = end || selectedUnit.text.length
+    const anchor = contextQuery.data?.messages.find((message) => message.labelable)
+    const replyTarget = contextQuery.data?.messages.find(
+      (message) => message.context_role === 'reply_target',
+    )
+    if (['grounding', 'argumentation'].includes(kind) && !replyTarget) {
+      throw new Error(
+        'Для этой relation-задачи нужна явная reply-цель; выберите ABSTAIN, если цель не разрешена.',
+      )
+    }
+    return {
+      kind,
+      value: annotationValue(
+        kind,
+        label,
+        selectedUnit.text.slice(start, safeEnd),
+        anchor?.sender_id ?? selectedUnit.sender_id,
+        anchor?.message_id,
+        contextQuery.data?.anchor_revision_id,
+        start,
+        safeEnd,
+        replyTarget?.message_id,
+      ),
+      spans: [{ start_codepoint: start, end_codepoint: safeEnd }],
+    }
+  }
+
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['annotation-sets', corpusId] }),
@@ -118,35 +177,14 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
       if (!selectedUnit) throw new Error('Выберите единицу разметки')
       const safeEnd = end || selectedUnit.text.length
       if (usesTaskJudgments) {
-        const anchor = contextQuery.data?.messages.find((message) => message.labelable)
-        const replyTarget = contextQuery.data?.messages.find(
-          (message) => message.context_role === 'reply_target',
-        )
-        if (
-          judgmentStatus === 'PRESENT'
-          && ['stance', 'grounding', 'argumentation'].includes(kind)
-          && !replyTarget
-        ) {
-          throw new Error(
-            'Для PRESENT этой relation-задачи нужна явная reply-цель; выберите ABSTAIN, если цель не разрешена.',
-          )
-        }
         const annotations = judgmentStatus === 'PRESENT'
-          ? [{
-              kind,
-              value: annotationValue(
-                kind,
-                label,
-                selectedUnit.text.slice(start, safeEnd),
-                anchor?.sender_id ?? selectedUnit.sender_id,
-                anchor?.message_id,
-                contextQuery.data?.anchor_revision_id,
-                start,
-                safeEnd,
-                replyTarget?.message_id,
-              ),
-              spans: [{ start_codepoint: start, end_codepoint: safeEnd }],
-            }]
+          ? (drafts.items.length
+              ? drafts.items.map((draft) => ({
+                  kind: draft.kind,
+                  value: draft.value,
+                  spans: draft.spans,
+                }))
+              : [buildCurrentAnnotation()])
           : []
         return submitTaskJudgment(selectedUnit.id, kind, slot, {
           status: judgmentStatus,
@@ -161,7 +199,10 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
         annotator,
       })
     },
-    onSuccess: refresh,
+    onSuccess: async () => {
+      dispatchDraft({ type: 'clear' })
+      await refresh()
+    },
   })
   const review = useMutation({
     mutationFn: ({
@@ -215,6 +256,8 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
       reviewer={reviewer}
       slot={slot}
       judgmentStatus={judgmentStatus}
+      draftAnnotations={drafts.items}
+      draftError={drafts.error}
       freezePending={freeze.isPending}
       annotatePending={annotate.isPending || (usesTaskJudgments && contextQuery.isLoading)}
       freezeError={freeze.error}
@@ -223,21 +266,40 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
       onSetChange={(value) => {
         setSelectedSetId(value)
         setSlot('A')
+        dispatchDraft({ type: 'clear' })
       }}
       onUnitSelect={(unit) => {
         setSelectedUnitId(unit.id)
         setStart(0)
         setEnd(unit.text.length)
         setSlot('A')
+        dispatchDraft({ type: 'clear' })
       }}
-      onKindChange={setKind}
+      onKindChange={(value) => {
+        setKind(value)
+        dispatchDraft({ type: 'clear' })
+      }}
       onLabelChange={setLabel}
       onStartChange={setStart}
       onEndChange={setEnd}
       onAnnotatorChange={setAnnotator}
       onReviewerChange={setReviewer}
-      onSlotChange={setSlot}
-      onJudgmentStatusChange={setJudgmentStatus}
+      onSlotChange={(value) => {
+        setSlot(value)
+        dispatchDraft({ type: 'clear' })
+      }}
+      onJudgmentStatusChange={(value) => {
+        setJudgmentStatus(value)
+        if (value !== 'PRESENT') dispatchDraft({ type: 'clear' })
+      }}
+      onAddDraft={() => {
+        try {
+          dispatchDraft({ type: 'add', annotation: buildCurrentAnnotation() })
+        } catch (error) {
+          dispatchDraft({ type: 'error', message: String(error) })
+        }
+      }}
+      onRemoveDraft={(draftId) => dispatchDraft({ type: 'remove', draftId })}
       onAnnotate={() => annotate.mutate()}
       onReview={(annotationId, decision) => review.mutate({ annotationId, decision })}
       onFreeze={() => freeze.mutate()}

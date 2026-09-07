@@ -5,6 +5,7 @@ import type {
   AnnotationSetStatistics,
   AnnotationUnit,
   AnnotationUnitContext,
+  JudgmentAnnotationDraft,
 } from '../api/types'
 import { ValidationCockpit } from './ValidationCockpit'
 
@@ -34,6 +35,8 @@ type AnnotationDeskProps = {
   reviewer: string
   slot: 'A' | 'B' | 'FINAL'
   judgmentStatus: 'PRESENT' | 'ABSENT' | 'ABSTAIN'
+  draftAnnotations: JudgmentAnnotationDraft[]
+  draftError: string
   freezePending: boolean
   annotatePending: boolean
   freezeError: unknown
@@ -49,6 +52,8 @@ type AnnotationDeskProps = {
   onReviewerChange: (value: string) => void
   onSlotChange: (value: 'A' | 'B' | 'FINAL') => void
   onJudgmentStatusChange: (value: 'PRESENT' | 'ABSENT' | 'ABSTAIN') => void
+  onAddDraft: () => void
+  onRemoveDraft: (draftId: number) => void
   onAnnotate: () => void
   onReview: (annotationId: string, decision: 'confirmed' | 'disputed' | 'rejected') => void
   onFreeze: () => void
@@ -212,11 +217,34 @@ function AnnotationEditor(props: AnnotationDeskProps) {
         {!props.usesTaskJudgments ? (
           <label>Аннотатор<input value={props.annotator} onChange={(event) => props.onAnnotatorChange(event.target.value)} /></label>
         ) : null}
+        {props.usesTaskJudgments && props.judgmentStatus === 'PRESENT' ? (
+          <button type="button" className="secondary" onClick={props.onAddDraft}>
+            Добавить экземпляр
+          </button>
+        ) : null}
         <button type="button" onClick={props.onAnnotate} disabled={props.annotatePending}>
           {props.usesTaskJudgments ? 'Сохранить суждение' : 'Сохранить наблюдение'}
         </button>
       </div>
-      {props.annotateError ? <strong className="annotation-error">{String(props.annotateError)}</strong> : null}
+      {props.draftAnnotations.length ? (
+        <div className="annotation-drafts" aria-label="Экземпляры текущего суждения">
+          {props.draftAnnotations.map((draft, index) => (
+            <article key={draft.draft_id}>
+              <strong>{draft.kind} #{index + 1}</strong>
+              <span>
+                span {draft.spans[0]?.start_codepoint}–{draft.spans[0]?.end_codepoint}
+              </span>
+              <code>{JSON.stringify(draft.value)}</code>
+              <button type="button" onClick={() => props.onRemoveDraft(draft.draft_id)}>Убрать</button>
+            </article>
+          ))}
+        </div>
+      ) : null}
+      {props.draftError || props.annotateError ? (
+        <strong className="annotation-error">
+          {props.draftError || String(props.annotateError)}
+        </strong>
+      ) : null}
     </section>
   )
 }

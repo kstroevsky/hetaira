@@ -181,6 +181,13 @@ export type GoldTaskJudgment = {
   }>
 }
 
+export type JudgmentAnnotationDraft = {
+  draft_id: number
+  kind: string
+  value: Record<string, unknown>
+  spans: Array<{ start_codepoint: number; end_codepoint: number }>
+}
+
 export type AnnotationUnitContext = {
   unit_id: string
   annotation_set_id: string

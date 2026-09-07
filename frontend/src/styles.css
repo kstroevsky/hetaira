@@ -997,6 +997,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .annotation-form { flex-wrap: wrap; border-top: 1px solid var(--slate-200); padding-top: 14px; }
 .annotation-form label:nth-child(2) { flex: 1; }
 .annotation-form label:nth-child(2) input { min-width: 180px; }
+.annotation-drafts { display: grid; gap: 8px; margin: 0 18px 14px; }
+.annotation-drafts article { align-items: center; background: var(--slate-100); border: 1px solid var(--slate-200); display: grid; gap: 6px; grid-template-columns: auto auto minmax(0, 1fr) auto; padding: 9px 11px; }
+.annotation-drafts code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .review-panel { grid-template-rows: 48px auto minmax(0, 1fr) auto; overflow: hidden; }
 .reviewer-field { padding: 12px 14px; border-bottom: 1px solid var(--slate-200); }
 .review-card { margin: 10px 12px 0; border: 1px solid var(--slate-200); padding: 10px; }

@@ -305,11 +305,27 @@ describe('Prometheus workbench', () => {
     expect(screen.getByText('ANCHOR · размечается')).toBeVisible()
     expect(screen.getByText('Blind mode: суждения другого аннотатора и FINAL скрыты.')).toBeVisible()
     expect(screen.queryByText('annotator-b')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Результат задачи'), { target: { value: 'ABSENT' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить экземпляр' }))
+    fireEvent.change(screen.getByLabelText('Начало'), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить экземпляр' }))
+    expect(screen.getByLabelText('Экземпляры текущего суждения')).toHaveTextContent(
+      'dialogue_act #2',
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить суждение' }))
     await waitFor(() => expect(calls.some((call) => call.url.includes('/judgments/dialogue_act/A'))).toBe(true))
     const submission = calls.find((call) => call.url.includes('/judgments/dialogue_act/A'))
-    expect(JSON.parse(String(submission?.init?.body))).toMatchObject({
+    const submittedPresent = JSON.parse(String(submission?.init?.body))
+    expect(submittedPresent).toMatchObject({
+      status: 'PRESENT', annotator: 'local-annotator',
+    })
+    expect(submittedPresent.annotations).toHaveLength(2)
+
+    fireEvent.change(screen.getByLabelText('Измерение'), { target: { value: 'proposition' } })
+    fireEvent.change(screen.getByLabelText('Результат задачи'), { target: { value: 'ABSENT' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить суждение' }))
+    await waitFor(() => expect(calls.some((call) => call.url.includes('/judgments/proposition/A'))).toBe(true))
+    const absence = calls.find((call) => call.url.includes('/judgments/proposition/A'))
+    expect(JSON.parse(String(absence?.init?.body))).toMatchObject({
       status: 'ABSENT', annotator: 'local-annotator', annotations: [],
     })
   })
