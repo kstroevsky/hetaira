@@ -1,6 +1,11 @@
 import { AlertTriangle, Check, Snowflake, X } from 'lucide-react'
 
-import type { AnnotationSet, AnnotationSetStatistics, AnnotationUnit } from '../api/types'
+import type {
+  AnnotationSet,
+  AnnotationSetStatistics,
+  AnnotationUnit,
+  AnnotationUnitContext,
+} from '../api/types'
 import { ValidationCockpit } from './ValidationCockpit'
 
 const kinds = [
@@ -17,6 +22,8 @@ type AnnotationDeskProps = {
   activeSetId: string
   activeSet: AnnotationSet | undefined
   statistics: AnnotationSetStatistics | undefined
+  usesTaskJudgments: boolean
+  unitContext: AnnotationUnitContext | undefined
   units: AnnotationUnit[]
   selectedUnit: AnnotationUnit | undefined
   kind: string
@@ -25,6 +32,8 @@ type AnnotationDeskProps = {
   end: number
   annotator: string
   reviewer: string
+  slot: 'A' | 'B' | 'FINAL'
+  judgmentStatus: 'PRESENT' | 'ABSENT' | 'ABSTAIN'
   freezePending: boolean
   annotatePending: boolean
   freezeError: unknown
@@ -38,6 +47,8 @@ type AnnotationDeskProps = {
   onEndChange: (value: number) => void
   onAnnotatorChange: (value: string) => void
   onReviewerChange: (value: string) => void
+  onSlotChange: (value: 'A' | 'B' | 'FINAL') => void
+  onJudgmentStatusChange: (value: 'PRESENT' | 'ABSENT' | 'ABSTAIN') => void
   onAnnotate: () => void
   onReview: (annotationId: string, decision: 'confirmed' | 'disputed' | 'rejected') => void
   onFreeze: () => void
@@ -70,6 +81,21 @@ function DeskToolbar(props: AnnotationDeskProps) {
           ))}
         </select>
       </div>
+      {props.usesTaskJudgments ? (
+        <label className="judgment-slot">
+          Режим
+          <select
+            value={props.slot}
+            onChange={(event) => props.onSlotChange(event.target.value as 'A' | 'B' | 'FINAL')}
+          >
+            <option value="A">Аннотатор A · blind</option>
+            {props.selectedUnit?.judgment_progress?.B ? (
+              <option value="B">Аннотатор B · blind</option>
+            ) : null}
+            <option value="FINAL">FINAL · adjudication</option>
+          </select>
+        </label>
+      ) : null}
       <div className="annotation-stats" aria-label="Состояние выборки">
         <span>Всего <strong>{props.statistics?.total_units ?? '—'}</strong></span>
         <span>Ожидают <strong>{statusCounts.pending ?? 0}</strong></span>
@@ -136,6 +162,28 @@ function AnnotationEditor(props: AnnotationDeskProps) {
         <span>SHA-256 {unit.text_hash.slice(0, 12)}…</span>
         <span>{unit.split}</span>
       </div>
+      {props.unitContext ? (
+        <div className="annotation-context" aria-label="Контекст anchor-сообщения">
+          <header>
+            <strong>Контекст эпизода</strong>
+            <span>
+              {props.unitContext.blind ? `слепой режим ${props.unitContext.slot}` : 'adjudication'}
+              {' · '}{props.unitContext.episode_size} сообщений в эпизоде
+            </span>
+          </header>
+          {props.unitContext.messages.map((message) => (
+            <article className={message.labelable ? 'anchor' : ''} key={message.message_id}>
+              <div>
+                <strong>{message.sender_name}</strong>
+                <i>{message.context_role}</i>
+                <time>{new Date(message.sent_at).toLocaleString('ru-RU')}</time>
+              </div>
+              <p>{message.text || '∅'}</p>
+              <small>{message.labelable ? 'ANCHOR · размечается' : 'CONTEXT · не размечается'}</small>
+            </article>
+          ))}
+        </div>
+      ) : null}
       <blockquote>{unit.text}</blockquote>
       <div className="span-controls">
         <label>Начало<input type="number" min={0} max={unit.text.length} value={props.start} onChange={(event) => props.onStartChange(Number(event.target.value))} /></label>
@@ -144,10 +192,29 @@ function AnnotationEditor(props: AnnotationDeskProps) {
       </div>
       <div className="span-preview">{unit.text.slice(props.start, safeEnd)}</div>
       <div className="annotation-form">
+        {props.usesTaskJudgments ? (
+          <label>
+            Результат задачи
+            <select
+              value={props.judgmentStatus}
+              onChange={(event) => props.onJudgmentStatusChange(
+                event.target.value as 'PRESENT' | 'ABSENT' | 'ABSTAIN',
+              )}
+            >
+              <option value="PRESENT">PRESENT</option>
+              <option value="ABSENT">ABSENT</option>
+              <option value="ABSTAIN">ABSTAIN</option>
+            </select>
+          </label>
+        ) : null}
         <label>Измерение<select value={props.kind} onChange={(event) => props.onKindChange(event.target.value)}>{kinds.map(([value, title]) => <option value={value} key={value}>{title}</option>)}</select></label>
         <label>Метка / тип<input value={props.label} onChange={(event) => props.onLabelChange(event.target.value)} /></label>
-        <label>Аннотатор<input value={props.annotator} onChange={(event) => props.onAnnotatorChange(event.target.value)} /></label>
-        <button type="button" onClick={props.onAnnotate} disabled={props.annotatePending}>Сохранить наблюдение</button>
+        {!props.usesTaskJudgments ? (
+          <label>Аннотатор<input value={props.annotator} onChange={(event) => props.onAnnotatorChange(event.target.value)} /></label>
+        ) : null}
+        <button type="button" onClick={props.onAnnotate} disabled={props.annotatePending}>
+          {props.usesTaskJudgments ? 'Сохранить суждение' : 'Сохранить наблюдение'}
+        </button>
       </div>
       {props.annotateError ? <strong className="annotation-error">{String(props.annotateError)}</strong> : null}
     </section>
@@ -155,6 +222,9 @@ function AnnotationEditor(props: AnnotationDeskProps) {
 }
 
 function ReviewPanel(props: AnnotationDeskProps) {
+  if (props.usesTaskJudgments) {
+    return <JudgmentPanel {...props} />
+  }
   const annotations = props.selectedUnit?.annotations ?? []
   return (
     <aside className="review-panel" aria-label="Проверка и adjudication">
@@ -177,6 +247,46 @@ function ReviewPanel(props: AnnotationDeskProps) {
       )) : <p className="review-empty">Сначала создайте наблюдение с точным спаном.</p>}
       {props.reviewError ? <strong className="annotation-error">{String(props.reviewError)}</strong> : null}
       <div className="freeze-note"><Snowflake /> Заморозка требует подтверждения каждой единицы и двух аннотаторов для DOUBLE.</div>
+    </aside>
+  )
+}
+
+function JudgmentPanel(props: AnnotationDeskProps) {
+  const judgments = props.unitContext?.judgments ?? []
+  return (
+    <aside className="review-panel judgment-panel" aria-label="Task completeness и adjudication">
+      <div className="annotation-panel-title">
+        {props.slot === 'FINAL' ? 'A/B → FINAL' : `Независимое суждение ${props.slot}`}
+      </div>
+      <label className="reviewer-field">
+        {props.slot === 'FINAL' ? 'Эксперт-adjudicator' : `Аннотатор ${props.slot}`}
+        <input
+          value={props.slot === 'FINAL' ? props.reviewer : props.annotator}
+          onChange={(event) => (
+            props.slot === 'FINAL'
+              ? props.onReviewerChange(event.target.value)
+              : props.onAnnotatorChange(event.target.value)
+          )}
+        />
+      </label>
+      <div className="judgment-task-list">
+        {judgments.map((judgment) => (
+          <article key={judgment.id}>
+            <header><strong>{judgment.task}</strong><span>{judgment.slot}</span></header>
+            <i className={judgment.status.toLocaleLowerCase()}>{judgment.status}</i>
+            {judgment.annotator ? <small>{judgment.annotator}</small> : null}
+            {judgment.annotations.map((annotation) => (
+              <pre key={annotation.id}>{JSON.stringify(annotation.value, null, 2)}</pre>
+            ))}
+          </article>
+        ))}
+      </div>
+      <div className="freeze-note">
+        <Snowflake />
+        {props.unitContext?.blind
+          ? 'Blind mode: суждения другого аннотатора и FINAL скрыты.'
+          : 'FINAL доступен после завершения всех независимых суждений по задаче.'}
+      </div>
     </aside>
   )
 }

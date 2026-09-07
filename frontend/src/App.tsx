@@ -117,7 +117,6 @@ export default function App() {
         ) : activeNav === 'Разметка' ? (
           <AnnotationWorkbench
             corpusId={corpus.id}
-            snapshotId={workspaceQuery.data.overview.snapshot_id}
           />
         ) : (
           <main className="workspace-grid">

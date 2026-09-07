@@ -928,6 +928,8 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .annotation-toolbar > div:first-child { display: grid; gap: 3px; }
 .annotation-toolbar span { color: var(--slate-700); font-size: 11px; }
 .annotation-toolbar select { min-width: 210px; border: 1px solid var(--slate-300); padding: 6px; }
+.judgment-slot { display: grid; gap: 3px; color: var(--slate-700); font-size: 9px; }
+.judgment-slot select { min-width: 155px; }
 .annotation-stats { display: flex; gap: 13px; flex: 1; }
 .annotation-stats span { padding-right: 13px; border-right: 1px solid var(--slate-200); }
 .annotation-stats strong { color: var(--ink); font-size: 13px; }
@@ -937,17 +939,20 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .annotation-banner { padding: 8px 16px; background: #fff5d8; color: #765310; }
 .annotation-banner.error, .annotation-error { color: var(--red); }
 .validation-cockpit { display: grid; grid-template-columns: 225px minmax(0, 1fr); border-bottom: 1px solid var(--slate-200); background: #f8fafc; }
-.validation-cockpit > header { display: flex; align-items: center; gap: 7px; padding: 9px 13px; border-right: 1px solid var(--slate-200); }
+.validation-cockpit > header { grid-row: 1 / 3; display: flex; align-items: center; gap: 7px; padding: 9px 13px; border-right: 1px solid var(--slate-200); }
 .validation-cockpit > header svg { width: 15px; color: var(--teal); }
 .validation-cockpit > header div { display: grid; gap: 1px; }
 .validation-cockpit > header span { color: var(--teal); font-size: 7px; font-weight: 800; letter-spacing: .08em; }
 .validation-cockpit > header strong { font-size: 10px; }
 .validation-cockpit > header i { margin-left: auto; padding: 3px 6px; border-radius: 9px; background: #fff0d2; color: #765310; font: normal 7px system-ui, sans-serif; white-space: nowrap; }
 .validation-cockpit > header i.ready { background: #e2f7ef; color: #12664d; }
-.validation-cockpit > div { display: grid; grid-template-columns: repeat(5, minmax(100px, 1fr)); }
-.validation-cockpit > div > div { display: grid; gap: 2px; padding: 9px 12px; border-right: 1px solid var(--slate-200); }
+.validation-cockpit > div:not(.task-gate-grid) { display: grid; grid-template-columns: repeat(5, minmax(100px, 1fr)); }
+.validation-cockpit > div:not(.task-gate-grid) > div { display: grid; gap: 2px; padding: 9px 12px; border-right: 1px solid var(--slate-200); }
 .validation-cockpit > div span { color: var(--slate-500); font-size: 8px; text-transform: uppercase; }
 .validation-cockpit > div strong { font-size: 13px; }
+.task-gate-grid { display: grid; grid-template-columns: repeat(6, minmax(90px, 1fr)); border-top: 1px solid var(--slate-200); }
+.task-gate-grid > div { display: flex; justify-content: space-between; gap: 6px; padding: 6px 10px; border-right: 1px solid var(--slate-200); }
+.task-gate-grid > div strong { font-size: 9px; }
 .annotation-layout {
   min-height: 0;
   display: grid;
@@ -971,6 +976,18 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .annotation-editor .annotation-panel-title { height: 48px; }
 .unit-metadata { display: flex; gap: 12px; padding: 12px 18px 0; color: var(--slate-500); font: 11px ui-monospace, monospace; }
 .annotation-editor blockquote { margin: 12px 18px; border: 1px solid var(--slate-200); border-left: 4px solid var(--violet); padding: 18px; line-height: 1.6; background: #fcfcfe; }
+.annotation-context { margin: 12px 18px; border: 1px solid var(--slate-200); background: var(--slate-100); }
+.annotation-context > header { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--slate-200); background: #fff; }
+.annotation-context > header strong { font-size: 10px; }
+.annotation-context > header span { color: var(--slate-500); font-size: 8px; }
+.annotation-context article { padding: 8px 10px; border-bottom: 1px solid var(--slate-200); border-left: 3px solid transparent; }
+.annotation-context article.anchor { border-left-color: var(--violet); background: #faf8ff; }
+.annotation-context article > div { display: flex; align-items: center; gap: 7px; }
+.annotation-context article strong { font-size: 9px; }
+.annotation-context article i { color: var(--blue); font: normal 7px ui-monospace, monospace; text-transform: uppercase; }
+.annotation-context article time { margin-left: auto; color: var(--slate-500); font-size: 7px; }
+.annotation-context article p { margin: 5px 0; font-size: 10px; line-height: 1.4; white-space: pre-wrap; }
+.annotation-context article small { color: var(--slate-500); font-size: 7px; }
 .span-controls, .annotation-form { display: flex; align-items: end; gap: 10px; margin: 12px 18px; }
 .span-controls label, .annotation-form label, .reviewer-field { display: grid; gap: 5px; color: var(--slate-700); font-size: 11px; }
 .span-controls input { width: 90px; }
@@ -986,6 +1003,17 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .review-card header { display: flex; justify-content: space-between; }
 .review-card header span { color: var(--slate-500); font-size: 10px; }
 .review-card pre { white-space: pre-wrap; font-size: 11px; color: var(--slate-700); }
+.judgment-task-list { overflow-y: auto; }
+.judgment-task-list article { display: grid; grid-template-columns: 1fr auto; gap: 4px 7px; padding: 8px 11px; border-bottom: 1px solid var(--slate-200); }
+.judgment-task-list article header { grid-column: 1 / -1; display: flex; justify-content: space-between; }
+.judgment-task-list article header strong { font-size: 9px; }
+.judgment-task-list article header span { color: var(--violet); font: 8px ui-monospace, monospace; }
+.judgment-task-list article > i { width: max-content; padding: 2px 5px; border-radius: 8px; background: var(--slate-100); color: var(--slate-500); font: normal 8px ui-monospace, monospace; }
+.judgment-task-list article > i.present { background: #e2f7ef; color: #12664d; }
+.judgment-task-list article > i.absent { background: #eaf2fb; color: var(--blue); }
+.judgment-task-list article > i.abstain { background: #fff0d2; color: #765310; }
+.judgment-task-list article small { color: var(--slate-500); font-size: 8px; }
+.judgment-task-list pre { grid-column: 1 / -1; margin: 2px 0 0; padding: 6px; background: var(--slate-100); white-space: pre-wrap; font-size: 8px; }
 .review-actions { display: flex; gap: 6px; }
 .review-actions button { width: 34px; height: 30px; border: 1px solid var(--slate-300); background: #fff; cursor: pointer; }
 .review-actions svg { width: 15px; }
@@ -1006,8 +1034,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .annotation-layout { grid-template-columns: 250px minmax(430px, 1fr) 280px; }
   .annotation-stats span:nth-child(n+4) { display: none; }
   .validation-cockpit { grid-template-columns: 190px minmax(0, 1fr); }
-  .validation-cockpit > div > div:nth-child(n+5) { display: none; }
-  .validation-cockpit > div { grid-template-columns: repeat(4, 1fr); }
+  .validation-cockpit > div:not(.task-gate-grid) > div:nth-child(n+5) { display: none; }
+  .validation-cockpit > div:not(.task-gate-grid) { grid-template-columns: repeat(4, 1fr); }
+  .task-gate-grid { grid-template-columns: repeat(3, 1fr); }
   .observatory { padding: 14px; }
   .observatory-kpis { grid-template-columns: repeat(3, 1fr); }
   .observatory-grid.primary, .observatory-grid.secondary, .observatory-grid.tertiary { grid-template-columns: 1fr; }

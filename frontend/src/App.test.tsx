@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from './App'
@@ -166,23 +166,24 @@ describe('Prometheus workbench', () => {
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Разметка' }))
     expect(await screen.findByText('Русский пилот разметки ещё не создан')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Создать gold-ru-v1' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Создать reference pilot' })).toBeEnabled()
   })
 
   it('shows full-set gold-ru-v1 validation statistics', async () => {
     const annotationSet = {
-      id: 'set-v1', corpus_id: 'c1', snapshot_id: 'snapshot-12345678', name: 'gold-ru-v1',
+      id: 'set-v1', corpus_id: 'c1', snapshot_id: 'snapshot-12345678', name: 'archive-reference-ru-pilot-v1',
       language: 'ru', codebook_key: 'foundational-conversation-ru', codebook_version: '0.1.0',
-      codebook_artifact_hash: 'hash', status: 'draft', target_size: 1200,
-      sampling_spec: { double_annotation_fraction: 0.3 }, manifest_hash: null,
+      codebook_artifact_hash: 'hash', status: 'draft', target_size: 80,
+      sampling_spec: { double_annotation_fraction: 0.3, judgment_protocol: 'blind_ab_final_v1' }, manifest_hash: null,
       frozen_at: null, created_at: '2025-01-01T00:00:00Z',
     }
     const statistics = {
-      annotation_set_id: 'set-v1', name: 'gold-ru-v1', status: 'draft', target_size: 1200,
-      total_units: 1200, status_counts: { pending: 1190, reviewed: 10 },
-      split_counts: { train: 720, development: 240, test: 240 }, difficult_units: 600,
-      confirmed_units: 10, coverage_by_kind: { proposition: 10 },
-      double_annotation: { required: 360, completed: 4, fraction: 0.3 },
+      annotation_set_id: 'set-v1', name: 'archive-reference-ru-pilot-v1', status: 'draft', target_size: 80,
+      total_units: 80, status_counts: { pending: 78, reviewed: 2 },
+      split_counts: { train: 48, development: 16, test: 16 }, difficult_units: 40,
+      confirmed_units: 2, coverage_by_kind: { proposition: 2 },
+      task_completion: { dialogue_act: { completed: 2, required: 80 } },
+      double_annotation: { required: 24, completed: 4, fraction: 0.3 },
       agreement: { comparable_unit_kinds: 4, exact: 3, raw_rate: 0.75 },
       freeze_ready: false, manifest_hash: null,
     }
@@ -214,8 +215,102 @@ describe('Prometheus workbench', () => {
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Разметка' }))
     expect(await screen.findByLabelText('Контроль научной валидации')).toBeVisible()
-    expect(await screen.findByText('720 / 240 / 240')).toBeVisible()
-    expect(screen.getByText('4 / 360')).toBeVisible()
+    expect(await screen.findByText('48 / 16 / 16')).toBeVisible()
+    expect(screen.getByText('4 / 24')).toBeVisible()
+    expect(screen.getAllByText('2 / 80')).toHaveLength(2)
     expect(screen.getByText('75%')).toBeVisible()
+  })
+
+  it('keeps A/B judgments blind and submits an explicit absence', async () => {
+    const annotationSet = {
+      id: 'set-blind', corpus_id: 'c1', snapshot_id: 'snapshot-12345678',
+      name: 'archive-reference-ru-pilot-v1', language: 'ru',
+      codebook_key: 'foundational-conversation-ru', codebook_version: '0.1.0',
+      codebook_artifact_hash: 'hash', status: 'draft', target_size: 80,
+      sampling_spec: { judgment_protocol: 'blind_ab_final_v1' }, manifest_hash: null,
+      frozen_at: null, created_at: '2025-01-01T00:00:00Z',
+    }
+    const unit = {
+      id: 'unit-1', ordinal: 0, object_type: 'anchor_message', object_id: 'm1',
+      revision_id: 'revision-1', group_id: 'episode-1', split: 'train',
+      strata: { double_annotation_required: true, has_explicit_reply: true },
+      status: 'pending', sender_id: 'p1', sent_at: '2025-01-01T09:00:00Z',
+      text: 'Да, именно.', text_hash: 'text-hash', annotations: [],
+      judgment_progress: {
+        A: { completed: 0, required: 6 }, B: { completed: 1, required: 6 },
+        FINAL: { completed: 0, required: 6 },
+      },
+    }
+    const judgments = ['dialogue_act', 'proposition', 'stance', 'epistemic_state', 'grounding', 'argumentation']
+      .map((task) => ({
+        id: `a-${task}`, task, slot: 'A', stage: 'independent',
+        status: 'NOT_ANNOTATED', annotator: null, submitted_at: null, annotations: [],
+      }))
+    const context = {
+      unit_id: 'unit-1', annotation_set_id: 'set-blind', split: 'train',
+      strata: unit.strata, slot: 'A', blind: true, anchor_message_id: 'm1',
+      anchor_revision_id: 'revision-1', episode_id: 'episode-1', episode_size: 2,
+      context_policy: { anchor_only_labelable: true },
+      messages: [
+        { message_id: 'm0', sender_id: 'p2', sender_name: 'Борис', sent_at: '2025-01-01T08:59:00Z', text: 'Это так?', context_role: 'reply_target', labelable: false },
+        { message_id: 'm1', sender_id: 'p1', sender_name: 'Иван', sent_at: '2025-01-01T09:00:00Z', text: 'Да, именно.', context_role: 'anchor', labelable: true },
+      ],
+      judgments,
+    }
+    const statistics = {
+      annotation_set_id: 'set-blind', name: annotationSet.name, status: 'draft', target_size: 80,
+      total_units: 80, status_counts: { pending: 80 },
+      split_counts: { train: 48, development: 16, test: 16 }, difficult_units: 40,
+      confirmed_units: 0, coverage_by_kind: {},
+      task_completion: Object.fromEntries(judgments.map(({ task }) => [task, { completed: 0, required: 80 }])),
+      double_annotation: { required: 24, completed: 0, fraction: 0.3 },
+      agreement: { comparable_unit_kinds: 0, exact: 0, raw_rate: null },
+      freeze_ready: false, manifest_hash: null, judgment_protocol: 'blind_ab_final_v1',
+    }
+    const calls: Array<{ url: string; init?: RequestInit }> = []
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      calls.push({ url, init })
+      const data = url.includes('/judgments/')
+        ? { id: 'saved', task: 'dialogue_act', slot: 'A', stage: 'independent', status: 'ABSENT' }
+        : url.includes('/annotation-units/unit-1/context')
+        ? context
+        : url.includes('/statistics')
+        ? statistics
+        : url.includes('/units')
+        ? { items: [unit], next_ordinal: null }
+        : url.includes('/annotation-sets')
+        ? [annotationSet]
+        : url.includes('/observatory')
+        ? observatory
+        : url.includes('/api/corpora')
+        ? [workspace.corpus]
+        : url.includes('/microscope')
+        ? workspace.microscope
+        : workspace
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <App />
+      </QueryClientProvider>,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Разметка' }))
+    expect(await screen.findByText('слепой режим A · 2 сообщений в эпизоде')).toBeVisible()
+    expect(screen.getByText('Это так?')).toBeVisible()
+    expect(screen.getByText('ANCHOR · размечается')).toBeVisible()
+    expect(screen.getByText('Blind mode: суждения другого аннотатора и FINAL скрыты.')).toBeVisible()
+    expect(screen.queryByText('annotator-b')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Результат задачи'), { target: { value: 'ABSENT' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить суждение' }))
+    await waitFor(() => expect(calls.some((call) => call.url.includes('/judgments/dialogue_act/A'))).toBe(true))
+    const submission = calls.find((call) => call.url.includes('/judgments/dialogue_act/A'))
+    expect(JSON.parse(String(submission?.init?.body))).toMatchObject({
+      status: 'ABSENT', annotator: 'local-annotator', annotations: [],
+    })
   })
 })

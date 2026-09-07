@@ -114,6 +114,7 @@ export type AnnotationSetStatistics = {
   difficult_units: number
   confirmed_units: number
   coverage_by_kind: Record<string, number>
+  task_completion?: Record<string, { completed: number; required: number }>
   double_annotation: {
     required: number
     completed: number
@@ -123,9 +124,12 @@ export type AnnotationSetStatistics = {
     comparable_unit_kinds: number
     exact: number
     raw_rate: number | null
+    by_task?: Record<string, { comparable: number; exact: number; raw_rate: number | null }>
+    stage?: string
   }
   freeze_ready: boolean
   manifest_hash: string | null
+  judgment_protocol?: string
 }
 
 export type UnitAnnotation = {
@@ -157,6 +161,48 @@ export type AnnotationUnit = {
   text: string
   text_hash: string
   annotations: UnitAnnotation[]
+  judgment_progress?: Record<string, { completed: number; required: number }>
+}
+
+export type GoldTaskJudgment = {
+  id: string
+  task: string
+  slot: 'A' | 'B' | 'FINAL'
+  stage: 'independent' | 'adjudicated'
+  status: 'PRESENT' | 'ABSENT' | 'ABSTAIN' | 'NOT_ANNOTATED'
+  annotator: string | null
+  submitted_at: string | null
+  annotations: Array<{
+    id: string
+    kind: string
+    value: Record<string, unknown>
+    evidence: Array<Record<string, unknown>>
+    status: string
+  }>
+}
+
+export type AnnotationUnitContext = {
+  unit_id: string
+  annotation_set_id: string
+  split: 'train' | 'development' | 'test'
+  strata: Record<string, unknown>
+  slot: 'A' | 'B' | 'FINAL'
+  blind: boolean
+  anchor_message_id: string
+  anchor_revision_id: string
+  episode_id: string | null
+  episode_size: number
+  context_policy: Record<string, unknown>
+  messages: Array<{
+    message_id: string
+    sender_id: string | null
+    sender_name: string
+    sent_at: string
+    text: string
+    context_role: 'reply_target' | 'previous' | 'anchor' | 'next'
+    labelable: boolean
+  }>
+  judgments: GoldTaskJudgment[]
 }
 
 export type ObservatoryFinding = {

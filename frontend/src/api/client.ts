@@ -2,6 +2,7 @@ import type {
   AnnotationSet,
   AnnotationSetStatistics,
   AnnotationUnit,
+  AnnotationUnitContext,
   Corpus,
   Microscope,
   ObservatoryOverview,
@@ -49,31 +50,42 @@ export function fetchAnnotationSets(corpusId: string): Promise<AnnotationSet[]> 
   return request(`/api/corpora/${corpusId}/annotation-sets`)
 }
 
-export function createGoldV1(
-  corpusId: string,
-  snapshotId: string,
-  targetSize = 1200,
-): Promise<AnnotationSet> {
-  return request('/api/annotation-sets', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      corpus_id: corpusId,
-      snapshot_id: snapshotId,
-      name: 'gold-ru-v1',
-      target_size: targetSize,
-      codebook_key: 'foundational-conversation-ru',
-      codebook_version: '0.1.0',
-      seed: 'gold-ru-v1',
-      double_annotation_fraction: 0.3,
-    }),
-  })
+export function createReferencePilot(corpusId: string): Promise<AnnotationSet> {
+  return request(`/api/corpora/${corpusId}/reference-pilot`, { method: 'POST' })
 }
 
 export function fetchAnnotationSetStatistics(
   annotationSetId: string,
 ): Promise<AnnotationSetStatistics> {
   return request(`/api/annotation-sets/${annotationSetId}/statistics`)
+}
+
+export function fetchAnnotationUnitContext(
+  unitId: string,
+  slot: 'A' | 'B' | 'FINAL',
+): Promise<AnnotationUnitContext> {
+  return request(`/api/annotation-units/${unitId}/context?slot=${slot}`)
+}
+
+export function submitTaskJudgment(
+  unitId: string,
+  task: string,
+  slot: 'A' | 'B' | 'FINAL',
+  payload: {
+    status: 'PRESENT' | 'ABSENT' | 'ABSTAIN'
+    annotator: string
+    annotations: Array<{
+      kind: string
+      value: Record<string, unknown>
+      spans: Array<{ start_codepoint: number; end_codepoint: number }>
+    }>
+  },
+): Promise<{ id: string; task: string; slot: string; stage: string; status: string }> {
+  return request(`/api/annotation-units/${unitId}/judgments/${task}/${slot}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function fetchAnnotationUnits(annotationSetId: string): Promise<AnnotationUnit[]> {

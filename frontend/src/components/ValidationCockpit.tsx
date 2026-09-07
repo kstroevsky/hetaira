@@ -7,6 +7,15 @@ type ValidationCockpitProps = {
   statistics: AnnotationSetStatistics | undefined
 }
 
+const taskLabels: Record<string, string> = {
+  dialogue_act: 'Диалоговые акты',
+  proposition: 'Пропозиции',
+  stance: 'Позиция',
+  epistemic_state: 'Эпистемика',
+  grounding: 'Grounding',
+  argumentation: 'Аргументация',
+}
+
 export function ValidationCockpit({ setName, statistics }: ValidationCockpitProps) {
   const splitValue = statistics
     ? `${statistics.split_counts.train ?? 0} / ${statistics.split_counts.development ?? 0} / ${statistics.split_counts.test ?? 0}`
@@ -38,6 +47,16 @@ export function ValidationCockpit({ setName, statistics }: ValidationCockpitProp
           value={statistics ? String(statistics.difficult_units) : '—'}
         />
       </div>
+      {statistics?.task_completion ? (
+        <div className="task-gate-grid" aria-label="Полнота обязательных задач">
+          {Object.entries(statistics.task_completion).map(([task, progress]) => (
+            <div key={task}>
+              <span>{taskLabels[task] ?? task}</span>
+              <strong>{progress.completed} / {progress.required}</strong>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
   )
 }
