@@ -13,5 +13,6 @@ frontend/dist/
 frontend/coverage/
 *.tsbuildinfo
 playwright-report/
+.playwright-cli/
 test-results/
 .codegraph/
