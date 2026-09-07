@@ -16,6 +16,7 @@ Status: accepted implementation input from the 2026-09-07 review. This document 
 | GOLD-008 | Preserve multiplicity | Multiple same-kind/same-label instances are matched as lists using span/entity endpoints; dictionary-key collapse is forbidden. |
 | GOLD-009 | Context-aware anchor | The anchor message receives labels. Annotators receive previous turns, explicit reply target, optional next turn, and episode context without labelling context spans. |
 | GOLD-010 | Whole-snapshot sampling | Sampling scans the complete snapshot and records time period, conversation, participant, episode size, reply status, length, question status, proposition multiplicity cue, rare cues, platform, and conversation goal/type. Prefix-only candidate pools are forbidden. |
+| GOLD-010A | Russian eligibility | The Russian reference set excludes empty/attachment-only, pure non-Cyrillic, and system-event anchors while reporting all exclusion counts. Context may remain multilingual. |
 | GOLD-011 | Corpus-specific naming | A set derived from one corpus is named as a corpus-specific reference/gold candidate; multi-corpus `gold-ru-core-v1` requires multiple diverse corpora. |
 | GOLD-012 | Core size is practical | Approximately 1,200 naturalistic units are a practical benchmark size, not a scientific sufficiency guarantee. |
 | GOLD-013 | Challenge sets | Reserve separate sets named `challenge-ru-stance-target-v1`, `challenge-ru-epistemic-attribution-v1`, `challenge-ru-grounding-repair-v1`, and `challenge-ru-argument-relations-v1`. |

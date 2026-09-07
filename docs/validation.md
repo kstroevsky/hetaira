@@ -15,7 +15,7 @@ Phase 2 completes deletion lineage, resumable task operations, artifact retentio
 
 ## Reference-pilot gate
 
-- Do not create or label `gold-ru-v1` yet. Start with a corpus-specific `reference-ru-pilot-v1`: 80 anchor messages sampled over the complete snapshot, 24 with blind independent A/B judgments, and complete episode groups assigned to one 60/20/20 split.
+- Do not create or label `gold-ru-v1` yet. Start with a corpus-specific `reference-ru-pilot-v1`: 80 Russian-text anchor messages sampled over the complete snapshot, 24 with blind independent A/B judgments, and complete episode groups assigned to one 60/20/20 split. Empty, attachment-only, pure non-Cyrillic, and system-event messages are reported as ineligible rather than silently entering the Russian benchmark.
 - Every unit has an explicit FINAL judgment for each required task: dialogue act, proposition, stance, epistemic state, grounding, and argumentation. `PRESENT`, `ABSENT`, and `ABSTAIN` are completed judgments; `NOT_ANNOTATED` is not.
 - A/B observations remain hidden from each other and immutable after submission. Their agreement is calculated before adjudication. FINAL is a separate expert judgment and is the only layer used for model evaluation.
 - The pilot validates the codebook and workflow first. Only after real humans can apply it consistently should the project define a multi-corpus `gold-ru-core-v1` and task-specific challenge sets.

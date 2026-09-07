@@ -530,6 +530,8 @@ class AnnotationWorkbenchService:
         fallback: list[tuple[int, str, tuple[Any, ...]]] = []
         fallback_limit = max(target_size * 4, target_size)
         scanned = 0
+        eligible = 0
+        excluded: Counter[str] = Counter()
         statement = (
             select(Message, MessageRevision, EpisodeMessage, Conversation)
             .join(SnapshotMessageRevision, SnapshotMessageRevision.message_id == Message.id)
@@ -542,6 +544,13 @@ class AnnotationWorkbenchService:
         )
         for message, revision, episode_message, conversation in self.session.execute(statement):
             scanned += 1
+            eligible_for_ru, exclusion_reason = self._russian_candidate_eligibility(
+                message, revision
+            )
+            if not eligible_for_ru:
+                excluded[exclusion_reason] += 1
+                continue
+            eligible += 1
             episode_size = episode_sizes.get(
                 episode_message.episode_id if episode_message else "", 0
             )
@@ -612,6 +621,9 @@ class AnnotationWorkbenchService:
             "strategy": "whole-snapshot-multistrata-bottom-hash-v1",
             "sampling_scope": "complete_snapshot",
             "scanned_units": scanned,
+            "eligible_units": eligible,
+            "excluded_units": dict(excluded),
+            "language_eligibility": "contains_cyrillic_user_text_v1",
             "candidate_buckets": len(buckets),
             "sampled_units": len(selected),
             "strata_dimensions": [
@@ -628,6 +640,20 @@ class AnnotationWorkbenchService:
                 "conversation_goal",
             ],
         }
+
+    @staticmethod
+    def _russian_candidate_eligibility(
+        message: Message, revision: MessageRevision
+    ) -> tuple[bool, str]:
+        text = revision.text.strip()
+        if not text:
+            return False, "empty_or_attachment_only"
+        source_sender = str(message.raw_metadata.get("source_sender_name", "")).casefold()
+        if source_sender in {"системное сообщение", "system message"}:
+            return False, "system_event"
+        if not re.search(r"[а-яё]", text, re.I):
+            return False, "no_cyrillic_text"
+        return True, "eligible"
 
     @staticmethod
     def _offer_candidate(

@@ -16,6 +16,8 @@ from prometheus_observatory.models import (
     AnnotationReview,
     AnnotationSetAnnotation,
     Corpus,
+    Message,
+    MessageRevision,
 )
 from prometheus_observatory.object_store import ContentAddressedStore
 
@@ -173,6 +175,7 @@ def test_reference_sampling_scans_snapshot_and_context_resolves_reply_target(
     assert created.sampling_spec["strategy"] == "whole-snapshot-multistrata-bottom-hash-v1"
     assert created.sampling_spec["sampling_scope"] == "complete_snapshot"
     assert created.sampling_spec["scanned_units"] == 2
+    assert created.sampling_spec["eligible_units"] == 2
     assert created.sampling_spec["split_strategy"] == "deterministic-group-balanced-v2"
     service = AnnotationWorkbenchService(db_session)
     reply_unit = next(
@@ -233,6 +236,27 @@ def test_independent_judgments_require_distinct_humans_and_abstain_has_no_labels
                 }
             ],
         )
+
+
+@pytest.mark.parametrize(
+    ("text", "sender", "eligible", "reason"),
+    [
+        ("Да", "Иван", True, "eligible"),
+        ("the dose makes the poison", "Ivan", False, "no_cyrillic_text"),
+        ("https://example.com", "Иван", False, "no_cyrillic_text"),
+        ("", "Иван", False, "empty_or_attachment_only"),
+        ("Иван вошёл в группу", "Системное сообщение", False, "system_event"),
+    ],
+)
+def test_russian_reference_candidate_eligibility(
+    text: str, sender: str, eligible: bool, reason: str
+) -> None:
+    message = Message(raw_metadata={"source_sender_name": sender})
+    revision = MessageRevision(text=text)
+    assert AnnotationWorkbenchService._russian_candidate_eligibility(message, revision) == (
+        eligible,
+        reason,
+    )
 
 
 def test_gold_v1_enforces_deterministic_double_annotation_cohort(
