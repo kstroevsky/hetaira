@@ -11,7 +11,7 @@ The current Foundation release implements the first complete vertical slice:
 - a persisted multidimensional Overview covering temporal, participation, reply, network, role, lexical, and health-primitive dimensions;
 - L0 source → L1 observation → L2 measurement → L3 interpretation evidence chains;
 - traceable Russian lexical retrieval and a bounded research-plan contract;
-- provider-neutral local/API model routing with corpus-derived egress policy, budgets, JSON Schema validation, and audits;
+- loopback-only local model routing with budgets, JSON Schema validation, and invocation audits;
 - a full React analysis microscope and an explicitly unvalidated 100-message English demo.
 
 High-level influence, power, persuasion, coalition, forecasting, and pivotal-moment systems remain gated behind validated primitive measurements. The ontology already reserves their evidence/provenance contracts; the application does not invent direct scores for them.
@@ -61,15 +61,12 @@ PROMETHEUS_DATABASE_URL=postgresql+psycopg://prometheus:prometheus@localhost:543
   --object-root /tmp/hetaira-scale-objects
 ```
 
-Create and inspect the Russian gold pilot (also available through the **Разметка** UI):
+Create and inspect the corpus-specific Russian reference pilot (also available through the **Разметка** UI). It samples 80 anchor messages from the complete snapshot, marks 24 for blind A/B annotation, and keeps FINAL adjudication separate:
 
 ```bash
-.venv/bin/python scripts/gold_ru_pilot.py create \
-  --target-size 1200 \
-  --name gold-ru-v1 \
-  --double-annotation-fraction 0.3
+.venv/bin/python scripts/gold_ru_pilot.py create --corpus-id <corpus-id>
 .venv/bin/python scripts/gold_ru_pilot.py status <annotation-set-id>
-.venv/bin/python scripts/gold_ru_pilot.py export <annotation-set-id> --output gold-ru-v0.json
+.venv/bin/python scripts/gold_ru_pilot.py export <annotation-set-id> --output reference-ru-pilot-v1.json
 ```
 
 ## Source map
@@ -85,4 +82,4 @@ Create and inspect the Russian gold pilot (also available through the **Разм
 
 ## Safety boundary
 
-New corpora default to `LOCAL_ONLY`. An external adapter cannot run under that policy. API-enabled modes require an explicit per-corpus policy and produce an invocation audit record. Retrieved content is always data, never model authority.
+This deployment is local-model-only. New corpora default to `LOCAL_ONLY`, the runtime rejects remote model adapters even if a corpus record carries an older API-capable policy, and model cost must remain zero. Retrieved content is always data, never model authority.
