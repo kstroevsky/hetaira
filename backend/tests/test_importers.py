@@ -14,6 +14,7 @@ from prometheus_observatory.models import (
     ConversationSession,
     Corpus,
     CorpusSnapshot,
+    EpisodeMessage,
     ImportRun,
     Message,
     MessageRevision,
@@ -198,6 +199,40 @@ def test_two_conversations_in_one_namespace_share_participant_identity(
         service.import_object(corpus, stored, "shared-export.json", "application/json", "telegram")
     assert db_session.scalar(select(func.count()).select_from(Conversation)) == 2
     assert db_session.scalar(select(func.count()).select_from(Participant)) == 1
+    assert set(db_session.scalars(select(Conversation.source_namespace))) == {"telegram"}
+
+
+def test_renamed_incremental_telegram_export_reuses_source_and_extends_segmentation(
+    db_session: Session, tmp_path: Path
+) -> None:
+    corpus = make_corpus(db_session)
+    store = ContentAddressedStore(tmp_path / "objects")
+    with (FIXTURES / "telegram.json").open("rb") as source:
+        first = store.put_stream(source)
+    service = ImportService(db_session)
+    service.import_object(corpus, first, "first-name.json", "application/json", "telegram")
+    payload = json.loads((FIXTURES / "telegram.json").read_text(encoding="utf-8"))
+    payload["messages"].append(
+        {
+            "id": 3,
+            "type": "message",
+            "date": "2025-01-01T09:30:00+00:00",
+            "from": "Анна",
+            "from_id": "user-anna",
+            "text": "Новое сообщение из переименованного экспорта.",
+        }
+    )
+    renamed = tmp_path / "renamed-export.json"
+    renamed.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    with renamed.open("rb") as source:
+        second = store.put_stream(source)
+    service.import_object(corpus, second, "renamed-export.json", "application/json", "telegram")
+
+    assert db_session.scalar(select(func.count()).select_from(Conversation)) == 1
+    assert db_session.scalar(select(func.count()).select_from(Message)) == 3
+    assert db_session.scalar(select(func.count()).select_from(EpisodeMessage)) == 3
+    assert db_session.scalar(select(func.count()).select_from(ConversationSession)) == 1
+    assert set(db_session.scalars(select(ImportRun.source_namespace))) == {"telegram"}
 
 
 def test_interrupted_import_resumes_from_durable_checkpoint_without_duplicates(

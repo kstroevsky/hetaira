@@ -65,7 +65,24 @@ def test_foundational_analysis_is_evidence_linked_and_idempotent(
         == 0
     )
     assert db_session.scalar(select(func.count()).select_from(DerivationEdge)) > 0
-    assert db_session.scalar(select(func.count()).select_from(DependencyFingerprint)) == 6
+    assert db_session.scalar(select(func.count()).select_from(DependencyFingerprint)) == 7
+
+
+def test_identical_snapshot_content_produces_snapshot_scoped_analysis_run(
+    db_session: Session, tmp_path: Path
+) -> None:
+    corpus = analyzed_corpus(db_session, tmp_path)
+    first = DeterministicAnalyzer(db_session).analyze(corpus.id)
+    with FIXTURE.open("rb") as source:
+        stored = ContentAddressedStore(tmp_path / "objects").put_stream(source)
+    second_import = ImportService(db_session).import_object(
+        corpus, stored, FIXTURE.name, "application/json", "telegram"
+    )
+    second = DeterministicAnalyzer(db_session).analyze(corpus.id)
+
+    assert second.id != first.id
+    assert second.snapshot_id == second_import.snapshot_id
+    assert second.snapshot_id != first.snapshot_id
 
 
 def test_reciprocity_ignores_implicit_and_non_reply_relations(

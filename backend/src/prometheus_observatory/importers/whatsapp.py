@@ -47,6 +47,10 @@ class WhatsAppParser:
             title=path.stem.replace("_", " "),
             platform=self.platform,
             source_namespace=f"whatsapp:{path.stem}",
+            warnings=[
+                "WhatsApp text exports lack a stable conversation ID; source namespace "
+                "still depends on the supplied export name."
+            ],
         )
 
     def iter_messages(self, path: Path) -> Iterator[NormalizedMessage]:

@@ -86,6 +86,7 @@ class DeterministicAnalyzer:
         self.codebook_version = codebook_release
         self.codebook_hash = codebook_hash
         dependencies = {
+            "snapshot_id": snapshot.id,
             "snapshot_manifest": snapshot.manifest_hash,
             "codebook_artifact": codebook_hash,
             "pipeline": self.settings.pipeline_version,

@@ -66,7 +66,7 @@ class ImportService:
     ) -> ImportResult:
         parser = PARSERS[platform]
         parsed_metadata = parser.metadata(stored.path)
-        source_namespace = f"{platform}:{Path(original_name).stem}"
+        source_namespace = parsed_metadata.source_namespace
         parent = self._latest_snapshot(corpus.id)
         import_run = ImportRun(
             corpus_id=corpus.id,
@@ -114,11 +114,7 @@ class ImportService:
         parser = PARSERS[import_run.platform]
         stored_path = Path(import_run.object_path)
         parsed_metadata = parser.metadata(stored_path)
-        external_conversation_id = (
-            parsed_metadata.external_id
-            if import_run.platform == "telegram"
-            else Path(import_run.original_name).stem
-        )
+        external_conversation_id = parsed_metadata.external_id
         try:
             conversation = self._conversation(
                 corpus,
@@ -466,26 +462,48 @@ class ImportService:
         )
 
     def _segment_streaming(self, conversation: Conversation) -> None:
-        if self.session.scalar(
-            select(ConversationSession.id).where(
-                ConversationSession.conversation_id == conversation.id
-            )
-        ):
-            return
         boundary = timedelta(hours=self.settings.default_session_gap_hours)
         current_session: ConversationSession | None = None
         current_episode: Episode | None = None
         previous_at: datetime | None = None
         ordinal = 0
-        group_index = 0
+        group_index = (
+            self.session.scalar(
+                select(func.count())
+                .select_from(ConversationSession)
+                .where(ConversationSession.conversation_id == conversation.id)
+            )
+            or 0
+        )
+        last_segmented = self.session.execute(
+            select(Message, ConversationSession, Episode, EpisodeMessage.ordinal)
+            .join(EpisodeMessage, EpisodeMessage.message_id == Message.id)
+            .join(Episode, Episode.id == EpisodeMessage.episode_id)
+            .join(ConversationSession, ConversationSession.id == Episode.session_id)
+            .where(Message.conversation_id == conversation.id)
+            .order_by(Message.sent_at.desc(), EpisodeMessage.ordinal.desc())
+            .limit(1)
+        ).one_or_none()
+        if last_segmented:
+            last_message, current_session, current_episode, last_ordinal = last_segmented
+            previous_at = self._aware(last_message.sent_at)
+            ordinal = last_ordinal + 1
         statement = (
             select(Message)
-            .where(Message.conversation_id == conversation.id)
+            .where(
+                Message.conversation_id == conversation.id,
+                Message.id.not_in(select(EpisodeMessage.message_id)),
+            )
             .order_by(Message.sent_at, Message.id)
             .execution_options(yield_per=self.settings.import_batch_size)
         )
         for message in self.session.scalars(statement):
             sent_at = self._aware(message.sent_at)
+            if previous_at is not None and sent_at < previous_at:
+                raise ValueError(
+                    "incremental import inserted messages before existing segmentation; "
+                    "a new versioned segmentation is required"
+                )
             if previous_at is None or sent_at - previous_at > boundary:
                 group_index += 1
                 ordinal = 0

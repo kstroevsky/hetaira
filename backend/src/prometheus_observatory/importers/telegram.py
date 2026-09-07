@@ -46,11 +46,12 @@ class TelegramParser:
                     break
                 if prefix in {"id", "name"} and event in {"string", "number"}:
                     values[prefix] = str(value)
+        external_id = values.get("id", values.get("name", path.stem))
         return ConversationMetadata(
-            external_id=values.get("id", values.get("name", path.stem)),
+            external_id=external_id,
             title=values.get("name", "Telegram export"),
             platform=self.platform,
-            source_namespace=f"telegram:{path.stem}",
+            source_namespace="telegram",
         )
 
     def iter_messages(self, path: Path) -> Iterator[NormalizedMessage]:

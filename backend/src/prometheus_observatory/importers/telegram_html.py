@@ -46,7 +46,7 @@ class TelegramHTMLParser:
             external_id=f"telegram-html:{hashlib.sha256(title.encode()).hexdigest()[:24]}",
             title=title,
             platform=self.platform,
-            source_namespace=f"telegram-html:{path.stem}",
+            source_namespace="telegram-html",
             warnings=[
                 "Telegram HTML timestamps do not include a timezone; "
                 "UTC is a reversible placeholder."
