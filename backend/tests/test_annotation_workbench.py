@@ -28,6 +28,8 @@ def annotation_set(
     *,
     name: str = "gold-ru-v0",
     double_annotation_fraction: float = 0,
+    target_size: int = 2,
+    judgment_protocol: str = "legacy_review",
 ):
     register_codebooks(session)
     corpus = Corpus(name="Gold pilot", language="ru", privacy_policy="LOCAL_ONLY")
@@ -42,12 +44,195 @@ def annotation_set(
         corpus_id=corpus.id,
         snapshot_id=imported.snapshot_id,
         name=name,
-        target_size=2,
+        target_size=target_size,
         codebook_key="foundational-conversation-ru",
         codebook_version="0.1.0",
         double_annotation_fraction=double_annotation_fraction,
+        judgment_protocol=judgment_protocol,
     )
     return created
+
+
+def test_blind_task_judgments_require_explicit_final_completion(
+    db_session: Session, tmp_path: Path
+) -> None:
+    created = annotation_set(
+        db_session,
+        tmp_path,
+        name="reference-ru-pilot-v1",
+        double_annotation_fraction=1,
+        target_size=1,
+        judgment_protocol="blind_ab_final_v1",
+    )
+    service = AnnotationWorkbenchService(db_session)
+    unit = service.list_units(created.id, limit=1)[0]
+    assert unit["object_type"] == "anchor_message"
+    assert unit["annotations"] == []
+    assert set(unit["judgment_progress"]) == {"A", "B", "FINAL"}
+    assert all(progress["completed"] == 0 for progress in unit["judgment_progress"].values())
+    assert {
+        judgment["slot"] for judgment in service.unit_context(unit["id"], "A")["judgments"]
+    } == {"A"}
+    assert {
+        judgment["slot"] for judgment in service.unit_context(unit["id"], "B")["judgments"]
+    } == {"B"}
+    assert {
+        judgment["slot"] for judgment in service.unit_context(unit["id"], "FINAL")["judgments"]
+    } == {"A", "B", "FINAL"}
+
+    with pytest.raises(ValueError, match="FINAL adjudication requires"):
+        service.submit_task_judgment(
+            unit["id"],
+            "dialogue_act",
+            "FINAL",
+            status="ABSENT",
+            annotator="adjudicator-c",
+            annotations=[],
+        )
+    for task in created.sampling_spec["required_tasks"]:
+        for slot, annotator in (("A", "annotator-a"), ("B", "annotator-b")):
+            service.submit_task_judgment(
+                unit["id"],
+                task,
+                slot,
+                status="ABSENT",
+                annotator=annotator,
+                annotations=[],
+            )
+        service.submit_task_judgment(
+            unit["id"],
+            task,
+            "FINAL",
+            status="ABSENT",
+            annotator="adjudicator-c",
+            annotations=[],
+        )
+    statistics = service.statistics(created.id)
+    assert statistics["confirmed_units"] == 1
+    assert statistics["double_annotation"]["completed"] == 1
+    assert statistics["agreement"]["stage"] == "independent_A_vs_B_pre_adjudication"
+    assert statistics["agreement"]["comparable_unit_kinds"] == 6
+    assert statistics["freeze_ready"] is True
+    assert service.freeze(created.id).status == "frozen"
+
+
+def test_present_judgment_preserves_duplicate_labels_at_different_spans(
+    db_session: Session, tmp_path: Path
+) -> None:
+    created = annotation_set(
+        db_session,
+        tmp_path,
+        name="reference-ru-multiplicity-v1",
+        target_size=1,
+        judgment_protocol="blind_ab_final_v1",
+    )
+    service = AnnotationWorkbenchService(db_session)
+    unit = service.list_units(created.id, limit=1)[0]
+    text = unit["text"]
+    midpoint = max(1, len(text) // 2)
+    service.submit_task_judgment(
+        unit["id"],
+        "dialogue_act",
+        "A",
+        status="PRESENT",
+        annotator="annotator-a",
+        annotations=[
+            {
+                "kind": "dialogue_act",
+                "value": {"label": "ASSERT"},
+                "spans": [{"start_codepoint": 0, "end_codepoint": midpoint}],
+            },
+            {
+                "kind": "dialogue_act",
+                "value": {"label": "ASSERT"},
+                "spans": [{"start_codepoint": midpoint, "end_codepoint": len(text)}],
+            },
+        ],
+    )
+    context = service.unit_context(unit["id"], "A")
+    judgment = next(item for item in context["judgments"] if item["task"] == "dialogue_act")
+    assert judgment["status"] == "PRESENT"
+    assert len(judgment["annotations"]) == 2
+    assert judgment["annotations"][0]["value"] == judgment["annotations"][1]["value"]
+    assert (
+        judgment["annotations"][0]["evidence"][0]["start_codepoint"]
+        != judgment["annotations"][1]["evidence"][0]["start_codepoint"]
+    )
+
+
+def test_reference_sampling_scans_snapshot_and_context_resolves_reply_target(
+    db_session: Session, tmp_path: Path
+) -> None:
+    created = annotation_set(
+        db_session,
+        tmp_path,
+        name="reference-ru-context-v1",
+        target_size=2,
+        judgment_protocol="blind_ab_final_v1",
+    )
+    assert created.sampling_spec["strategy"] == "whole-snapshot-multistrata-bottom-hash-v1"
+    assert created.sampling_spec["sampling_scope"] == "complete_snapshot"
+    assert created.sampling_spec["scanned_units"] == 2
+    assert created.sampling_spec["split_strategy"] == "deterministic-group-balanced-v2"
+    service = AnnotationWorkbenchService(db_session)
+    reply_unit = next(
+        unit for unit in service.list_units(created.id) if unit["strata"]["has_explicit_reply"]
+    )
+    context = service.unit_context(reply_unit["id"], "A")
+    assert sum(message["labelable"] for message in context["messages"]) == 1
+    assert any(
+        message["context_role"] == "reply_target" and not message["labelable"]
+        for message in context["messages"]
+    )
+    with pytest.raises(ValueError, match="slot B"):
+        service.unit_context(reply_unit["id"], "B")
+
+
+def test_independent_judgments_require_distinct_humans_and_abstain_has_no_labels(
+    db_session: Session, tmp_path: Path
+) -> None:
+    created = annotation_set(
+        db_session,
+        tmp_path,
+        name="reference-ru-independent-v1",
+        target_size=1,
+        double_annotation_fraction=1,
+        judgment_protocol="blind_ab_final_v1",
+    )
+    service = AnnotationWorkbenchService(db_session)
+    unit = service.list_units(created.id, limit=1)[0]
+    service.submit_task_judgment(
+        unit["id"],
+        "dialogue_act",
+        "A",
+        status="ABSENT",
+        annotator="annotator-a",
+        annotations=[],
+    )
+    with pytest.raises(ValueError, match="distinct annotators"):
+        service.submit_task_judgment(
+            unit["id"],
+            "dialogue_act",
+            "B",
+            status="ABSENT",
+            annotator="annotator-a",
+            annotations=[],
+        )
+    with pytest.raises(ValueError, match="cannot contain"):
+        service.submit_task_judgment(
+            unit["id"],
+            "proposition",
+            "A",
+            status="ABSTAIN",
+            annotator="annotator-a",
+            annotations=[
+                {
+                    "kind": "proposition",
+                    "value": {"type": "claim"},
+                    "spans": [{"start_codepoint": 0, "end_codepoint": 1}],
+                }
+            ],
+        )
 
 
 def test_gold_v1_enforces_deterministic_double_annotation_cohort(

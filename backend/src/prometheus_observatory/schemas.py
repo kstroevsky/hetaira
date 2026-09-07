@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -113,6 +113,18 @@ class ManualAnnotationCreate(BaseModel):
 class AnnotationReviewCreate(BaseModel):
     decision: str
     reviewer: str = Field(min_length=1, max_length=240)
+
+
+class JudgmentAnnotationCreate(BaseModel):
+    kind: str = Field(min_length=1, max_length=80)
+    value: dict[str, Any]
+    spans: list[EvidenceSpanCreate] = Field(default_factory=list)
+
+
+class TaskJudgmentSubmit(BaseModel):
+    status: Literal["PRESENT", "ABSENT", "ABSTAIN"]
+    annotator: str = Field(min_length=1, max_length=240)
+    annotations: list[JudgmentAnnotationCreate] = Field(default_factory=list)
 
 
 class MessageListItem(BaseModel):

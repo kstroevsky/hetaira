@@ -446,6 +446,41 @@ class AnnotationSetAnnotation(Base, Timestamped):
     )
 
 
+class GoldTaskJudgment(Base, Timestamped):
+    __tablename__ = "gold_task_judgments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    annotation_set_id: Mapped[str] = mapped_column(
+        ForeignKey("annotation_sets.id", ondelete="CASCADE"), index=True
+    )
+    unit_id: Mapped[str] = mapped_column(
+        ForeignKey("annotation_units.id", ondelete="CASCADE"), index=True
+    )
+    task: Mapped[str] = mapped_column(String(80), index=True)
+    slot: Mapped[str] = mapped_column(String(16), index=True)
+    stage: Mapped[str] = mapped_column(String(24), index=True)
+    status: Mapped[str] = mapped_column(String(24), default="NOT_ANNOTATED", index=True)
+    annotator: Mapped[str | None] = mapped_column(String(240), index=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    provenance: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    __table_args__ = (
+        UniqueConstraint("unit_id", "task", "slot", name="uq_gold_judgment_unit_task_slot"),
+    )
+
+
+class GoldJudgmentAnnotation(Base, Timestamped):
+    __tablename__ = "gold_judgment_annotations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    judgment_id: Mapped[str] = mapped_column(
+        ForeignKey("gold_task_judgments.id", ondelete="CASCADE"), index=True
+    )
+    annotation_id: Mapped[str] = mapped_column(
+        ForeignKey("annotations.id", ondelete="CASCADE"), index=True
+    )
+    __table_args__ = (
+        UniqueConstraint("judgment_id", "annotation_id", name="uq_gold_judgment_annotation"),
+    )
+
+
 class AnnotationReview(Base, Timestamped):
     __tablename__ = "annotation_reviews"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)

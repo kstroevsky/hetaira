@@ -38,6 +38,7 @@ from .schemas import (
     MessageListItem,
     MicroscopeResponse,
     RunRead,
+    TaskJudgmentSubmit,
     WorkspaceResponse,
 )
 from .workspace import WorkspaceService
@@ -313,6 +314,20 @@ def create_annotation_set(
         raise HTTPException(422, str(error)) from error
 
 
+@router.post(
+    "/corpora/{corpus_id}/reference-pilot",
+    response_model=AnnotationSetRead,
+    status_code=201,
+)
+def create_reference_pilot(
+    corpus_id: str, session: Session = Depends(get_session)
+) -> AnnotationSet:
+    try:
+        return AnnotationWorkbenchService(session).create_reference_pilot(corpus_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
 @router.get("/corpora/{corpus_id}/annotation-sets", response_model=list[AnnotationSetRead])
 def list_annotation_sets(
     corpus_id: str, session: Session = Depends(get_session)
@@ -351,6 +366,57 @@ def annotation_set_statistics(
         return AnnotationWorkbenchService(session).statistics(annotation_set_id)
     except LookupError as error:
         raise HTTPException(404, str(error)) from error
+
+
+@router.get("/annotation-units/{unit_id}/context")
+def annotation_unit_context(
+    unit_id: str,
+    slot: str = "A",
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        return AnnotationWorkbenchService(session).unit_context(unit_id, slot)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@router.post("/annotation-units/{unit_id}/judgments/{task}/{slot}")
+def submit_task_judgment(
+    unit_id: str,
+    task: str,
+    slot: str,
+    payload: TaskJudgmentSubmit,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        judgment = AnnotationWorkbenchService(session).submit_task_judgment(
+            unit_id,
+            task,
+            slot,
+            status=payload.status,
+            annotator=payload.annotator,
+            annotations=[
+                {
+                    "kind": annotation.kind,
+                    "value": annotation.value,
+                    "spans": [span.model_dump() for span in annotation.spans],
+                }
+                for annotation in payload.annotations
+            ],
+        )
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    return {
+        "id": judgment.id,
+        "task": judgment.task,
+        "slot": judgment.slot,
+        "stage": judgment.stage,
+        "status": judgment.status,
+    }
 
 
 @router.post("/annotation-units/{unit_id}/annotations")

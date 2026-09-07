@@ -8,7 +8,7 @@ from pathlib import Path
 from prometheus_observatory.annotation_workbench import AnnotationWorkbenchService
 from prometheus_observatory.codebooks import register_codebooks
 from prometheus_observatory.database import SessionLocal
-from prometheus_observatory.models import AnnotationSet, Corpus, CorpusSnapshot
+from prometheus_observatory.models import AnnotationSet, Corpus
 from sqlalchemy import select
 
 
@@ -27,39 +27,24 @@ def resolve_corpus(session, corpus_id: str | None) -> Corpus:
 
 def create(
     corpus_id: str | None,
-    target_size: int,
-    name: str,
-    double_annotation_fraction: float,
 ) -> dict:
     with SessionLocal() as session:
         register_codebooks(session)
         corpus = resolve_corpus(session, corpus_id)
-        snapshot = session.scalar(
-            select(CorpusSnapshot)
-            .where(CorpusSnapshot.corpus_id == corpus.id)
-            .order_by(CorpusSnapshot.created_at.desc(), CorpusSnapshot.id.desc())
-        )
-        if snapshot is None:
-            raise SystemExit("Corpus has no snapshot")
-        annotation_set = AnnotationWorkbenchService(session).create_set(
-            corpus_id=corpus.id,
-            snapshot_id=snapshot.id,
-            name=name,
-            target_size=target_size,
-            codebook_key="foundational-conversation-ru",
-            codebook_version="0.1.0",
-            seed=name,
-            double_annotation_fraction=double_annotation_fraction,
-        )
-        statistics = AnnotationWorkbenchService(session).statistics(annotation_set.id)
+        service = AnnotationWorkbenchService(session)
+        annotation_set = service.create_reference_pilot(corpus.id)
+        statistics = service.statistics(annotation_set.id)
         return {
             "annotation_set_id": annotation_set.id,
             "corpus_id": corpus.id,
-            "snapshot_id": snapshot.id,
-            "requested_units": target_size,
+            "snapshot_id": annotation_set.snapshot_id,
+            "requested_units": 80,
             "sampled_units": statistics["total_units"],
             "splits": statistics["split_counts"],
             "double_annotation": statistics["double_annotation"],
+            "required_tasks": annotation_set.sampling_spec["required_tasks"],
+            "judgment_protocol": annotation_set.sampling_spec["judgment_protocol"],
+            "sampling_scope": annotation_set.sampling_spec["sampling_scope"],
             "status": annotation_set.status,
         }
 
@@ -108,13 +93,12 @@ def export(annotation_set_id: str, output: Path) -> dict:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Manage a Russian gold annotation set")
+    parser = argparse.ArgumentParser(
+        description="Manage a Russian reference annotation pilot"
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
     create_parser = subparsers.add_parser("create")
     create_parser.add_argument("--corpus-id")
-    create_parser.add_argument("--target-size", type=int, default=1200)
-    create_parser.add_argument("--name", default="gold-ru-v1")
-    create_parser.add_argument("--double-annotation-fraction", type=float, default=0.3)
     status_parser = subparsers.add_parser("status")
     status_parser.add_argument("annotation_set_id")
     export_parser = subparsers.add_parser("export")
@@ -122,12 +106,7 @@ if __name__ == "__main__":
     export_parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
     if arguments.command == "create":
-        result = create(
-            arguments.corpus_id,
-            arguments.target_size,
-            arguments.name,
-            arguments.double_annotation_fraction,
-        )
+        result = create(arguments.corpus_id)
     elif arguments.command == "status":
         result = status(arguments.annotation_set_id)
     else:
