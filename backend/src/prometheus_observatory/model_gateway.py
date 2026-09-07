@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .config import get_settings
 from .models import Corpus, ModelInvocation, Participant
 from .ontology import PrivacyPolicy
 
@@ -236,6 +237,8 @@ class EgressPolicyEnforcer:
                 ),
                 {"egress": False, "redactions": 0},
             )
+        if not get_settings().allow_remote_model_calls:
+            raise PermissionError("remote model calls are disabled for this deployment")
         if corpus_policy == PrivacyPolicy.LOCAL_ONLY:
             raise PermissionError("corpus LOCAL_ONLY policy forbids API egress")
         if policy.privacy_policy == PrivacyPolicy.LOCAL_ONLY:

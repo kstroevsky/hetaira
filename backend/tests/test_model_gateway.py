@@ -99,3 +99,22 @@ def test_model_policy_cannot_exceed_persisted_corpus_policy(db_session: Session)
             "test",
             approved=True,
         )
+
+
+def test_remote_models_are_disabled_for_this_deployment(db_session: Session) -> None:
+    corpus = Corpus(
+        name="Legacy API-capable corpus",
+        privacy_policy="API_PSEUDONYMIZED_MINIMAL",
+    )
+    db_session.add(corpus)
+    db_session.commit()
+    adapter = RemoteOpenAICompatibleAdapter(base_url="https://api.example", model="test")
+    with pytest.raises(PermissionError, match="disabled for this deployment"):
+        EgressPolicyEnforcer(db_session).enforce(
+            corpus,
+            adapter,
+            [EvidenceItem(evidence_id="1", text="тест")],
+            ModelPolicy(privacy_policy=PrivacyPolicy.API_PSEUDONYMIZED_MINIMAL),
+            "test",
+            approved=True,
+        )

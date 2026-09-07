@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     import_batch_size: int = Field(default=500, ge=10, le=10_000)
     analysis_page_size: int = Field(default=500, ge=10, le=10_000)
     allow_sqlite_create_all: bool = True
+    allow_remote_model_calls: bool = False
 
     @property
     def cors_origin_list(self) -> list[str]:
