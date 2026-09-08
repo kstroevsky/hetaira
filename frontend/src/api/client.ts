@@ -7,6 +7,7 @@ import type {
   ConversationGraph,
   ConversationGraphRun,
   LinguisticAnalysis,
+  ReasoningGraph,
   Microscope,
   ObservatoryOverview,
   EpisodeMicroscope,
@@ -225,4 +226,16 @@ export function fetchMessageLinguistics(
   messageId: string,
 ): Promise<LinguisticAnalysis> {
   return request(`/api/corpora/${corpusId}/messages/${messageId}/linguistics`)
+}
+
+export function createReasoningRun(corpusId: string): Promise<ConversationGraphRun> {
+  return request(`/api/corpora/${corpusId}/reasoning-runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ include_nli: true }),
+  })
+}
+
+export function fetchReasoningGraph(corpusId: string): Promise<ReasoningGraph> {
+  return request(`/api/corpora/${corpusId}/reasoning-graph`)
 }

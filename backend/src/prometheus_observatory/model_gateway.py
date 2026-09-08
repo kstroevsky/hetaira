@@ -40,6 +40,7 @@ class ModelCapabilities(BaseModel):
     batch: bool = False
     embeddings: bool = False
     linguistic_analysis: bool = False
+    pair_classification: bool = False
     context_window: int = Field(default=8192, ge=1024)
 
 
@@ -94,6 +95,14 @@ class LinguisticResult(BaseModel):
     request_hash: str
 
 
+class PairClassificationResult(BaseModel):
+    classifications: list[dict[str, Any]]
+    provider: str
+    model: str
+    latency_ms: int
+    request_hash: str
+
+
 class ModelAdapter(Protocol):
     provider: str
     model: str
@@ -133,6 +142,20 @@ class LinguisticAdapter(Protocol):
     is_local: bool
 
     def analyze(self, bundle: EvidenceBundle, policy: ModelPolicy) -> LinguisticResult: ...
+
+
+class PairClassificationAdapter(Protocol):
+    provider: str
+    model: str
+    model_revision: str
+    capabilities: ModelCapabilities
+    input_price_per_million: float
+    output_price_per_million: float
+    is_local: bool
+
+    def classify_pairs(
+        self, bundle: EvidenceBundle, pairs: list[dict[str, str]], policy: ModelPolicy
+    ) -> PairClassificationResult: ...
 
 
 @dataclass(slots=True)
@@ -358,6 +381,79 @@ class LocalLinguisticAnalysisAdapter:
 
 
 @dataclass(slots=True)
+class LocalPairClassificationAdapter:
+    """Pinned loopback-only pair classifier for NLI or argument relations."""
+
+    base_url: str
+    model: str
+    model_revision: str
+    labels: tuple[str, ...] = ("ENTAILMENT", "CONTRADICTION", "NEUTRAL")
+    provider: str = "local-pair-classification"
+    capabilities: ModelCapabilities = field(
+        default_factory=lambda: ModelCapabilities(batch=True, pair_classification=True)
+    )
+    timeout_seconds: float = 120
+    input_price_per_million: float = 0
+    output_price_per_million: float = 0
+    is_local: bool = True
+
+    def __post_init__(self) -> None:
+        parsed = urlparse(self.base_url)
+        if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "::1"}:
+            raise ValueError(
+                "local pair-classifier URL must use http and literal loopback 127.0.0.1 or [::1]"
+            )
+        if parsed.username or parsed.password:
+            raise ValueError("credentials are not permitted in local pair-classifier URLs")
+        if not self.model_revision or self.model_revision == "unversioned":
+            raise ValueError("local pair-classifier model revision must be pinned")
+
+    def classify_pairs(
+        self, bundle: EvidenceBundle, pairs: list[dict[str, str]], policy: ModelPolicy
+    ) -> PairClassificationResult:
+        if policy.privacy_policy != PrivacyPolicy.LOCAL_ONLY:
+            raise PermissionError("pair classifier only accepts LOCAL_ONLY policy")
+        started = time.monotonic()
+        with httpx.Client(
+            timeout=self.timeout_seconds,
+            follow_redirects=False,
+            trust_env=False,
+        ) as client:
+            response = client.post(
+                f"{self.base_url.rstrip('/')}/classify-pairs",
+                headers={"Content-Type": "application/json"},
+                json={
+                    "model": self.model,
+                    "model_revision": self.model_revision,
+                    "task": "nli",
+                    "labels": list(self.labels),
+                    "pairs": pairs,
+                },
+            )
+            if response.is_redirect:
+                raise PermissionError("pair-classifier endpoint redirects are forbidden")
+            response.raise_for_status()
+        classifications = response.json().get("data")
+        if not isinstance(classifications, list) or len(classifications) != len(pairs):
+            raise ValueError("pair-classifier response does not match the requested batch")
+        for expected, classification in zip(pairs, classifications, strict=True):
+            if classification.get("pair_id") != expected["pair_id"]:
+                raise ValueError("pair-classifier response changed pair order or identity")
+            if classification.get("label") not in self.labels:
+                raise ValueError("pair-classifier returned an unknown label")
+            scores = classification.get("scores")
+            if not isinstance(scores, dict) or set(scores) != set(self.labels):
+                raise ValueError("pair-classifier must return a score for every label")
+        return PairClassificationResult(
+            classifications=classifications,
+            provider=self.provider,
+            model=self.model,
+            latency_ms=round((time.monotonic() - started) * 1000),
+            request_hash=bundle.request_hash(),
+        )
+
+
+@dataclass(slots=True)
 class RemoteOpenAICompatibleAdapter(OpenAICompatibleAdapter):
     provider: str = "remote-openai-compatible"
 
@@ -378,7 +474,9 @@ class TaskCapabilityRegistry:
         self._requirements[task] = minimum_context
 
     def require(
-        self, task: str, adapter: ModelAdapter | EmbeddingAdapter | LinguisticAdapter
+        self,
+        task: str,
+        adapter: ModelAdapter | EmbeddingAdapter | LinguisticAdapter | PairClassificationAdapter,
     ) -> None:
         if task not in self._requirements:
             raise LookupError(f"unregistered model task: {task}")
@@ -394,6 +492,11 @@ class TaskCapabilityRegistry:
         self.require(task, adapter)
         if not adapter.capabilities.linguistic_analysis:
             raise ValueError(f"adapter does not provide linguistic analysis for {task}")
+
+    def require_pair_classification(self, task: str, adapter: PairClassificationAdapter) -> None:
+        self.require(task, adapter)
+        if not adapter.capabilities.pair_classification:
+            raise ValueError(f"adapter does not provide pair classification for {task}")
 
 
 class EgressPolicyEnforcer:
@@ -630,6 +733,50 @@ class ModelRouter:
             actual_ids = [item.get("evidence_id") for item in result.analyses]
             if actual_ids != expected_ids:
                 raise ValueError("linguistic response changed evidence order or identity")
+        except Exception as error:
+            self.auditor.record(
+                run_id=run_id,
+                task=task,
+                bundle=bundle,
+                adapter=adapter,
+                input_tokens=input_tokens,
+                estimated_cost=estimated_cost,
+                status="failed",
+                error=str(error),
+            )
+            raise
+        self.auditor.record(
+            run_id=run_id,
+            task=task,
+            bundle=bundle,
+            adapter=adapter,
+            input_tokens=input_tokens,
+            estimated_cost=estimated_cost,
+            status="completed",
+            latency_ms=result.latency_ms,
+        )
+        return result
+
+    def classify_pairs(
+        self,
+        *,
+        corpus_id: str,
+        run_id: str,
+        task: str,
+        adapter: PairClassificationAdapter,
+        items: list[EvidenceItem],
+        pairs: list[dict[str, str]],
+        policy: ModelPolicy,
+        reason: str,
+    ) -> PairClassificationResult:
+        corpus = self.session.get(Corpus, corpus_id)
+        if corpus is None:
+            raise LookupError("corpus not found")
+        self.registry.require_pair_classification(task, adapter)
+        bundle, _audit = self.egress.enforce(corpus, adapter, items, policy, reason, False)
+        input_tokens, estimated_cost = self.budget.enforce(bundle, adapter, policy)
+        try:
+            result = adapter.classify_pairs(bundle, pairs, policy)
         except Exception as error:
             self.auditor.record(
                 run_id=run_id,

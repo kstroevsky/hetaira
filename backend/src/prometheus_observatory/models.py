@@ -504,6 +504,8 @@ class PropositionMention(Base, Timestamped):
 class PropositionRelation(Base, Timestamped):
     __tablename__ = "proposition_relations"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    snapshot_id: Mapped[str | None] = mapped_column(ForeignKey("corpus_snapshots.id"), index=True)
+    run_id: Mapped[str | None] = mapped_column(ForeignKey("analysis_runs.id"), index=True)
     source_proposition_id: Mapped[str] = mapped_column(
         ForeignKey("proposition_mentions.id"), index=True
     )
@@ -513,6 +515,8 @@ class PropositionRelation(Base, Timestamped):
     relation_type: Mapped[str] = mapped_column(String(40), index=True)
     annotation_id: Mapped[str] = mapped_column(ForeignKey("annotations.id"), unique=True)
     confidence: Mapped[float | None] = mapped_column(Float)
+    scoring_method: Mapped[str] = mapped_column(String(80), default="legacy")
+    status: Mapped[str] = mapped_column(String(24), default="provisional")
 
 
 class StanceObservation(Base, Timestamped):

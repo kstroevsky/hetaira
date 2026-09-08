@@ -52,6 +52,12 @@ all source offsets, and return token-linked dependency and SRL structures. Missi
 output leaves the deterministic layer available and is represented as unavailable rather than as a
 negative observation.
 
+NLP-05 and NLP-06 now have a provisional reasoning-graph slice. Existing proposition and reply
+graphs generate bounded proposition-pair candidates; rules classify observable argument components
+and propose `SUPPORTS` or `ATTACKS` while retaining abstained candidates. A typed, pinned, loopback
+pair classifier can contribute NLI scores as a separate channel. Every NLI result records
+`truth_status: not_determined`; it never silently becomes a stance, argument, or truth judgment.
+
 NLP-01 explicitly retains probabilistic pair/cross-encoder classifiers and global graph optimization
 as later challengers after reference relations are ready. NLP-02 retains discourse-unit segmentation
 and richer discourse parsing. The method inventories in the source proposal remain candidates to

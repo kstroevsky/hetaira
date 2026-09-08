@@ -184,6 +184,10 @@ class LinguisticRunCreate(BaseModel):
     execute: bool = True
 
 
+class ReasoningRunCreate(BaseModel):
+    include_nli: bool = True
+
+
 class WorkspaceResponse(BaseModel):
     corpus: CorpusRead
     messages: list[MessageListItem]

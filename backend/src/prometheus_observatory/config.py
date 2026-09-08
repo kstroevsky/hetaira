@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     local_linguistic_model: str = "operator-configured-russian-parser"
     local_linguistic_revision: str = "unversioned"
     linguistic_analysis_batch_size: int = Field(default=250, ge=10, le=2_000)
+    local_nli_base_url: str | None = None
+    local_nli_model: str = "operator-configured-multilingual-nli"
+    local_nli_revision: str = "unversioned"
     conversation_graph_candidate_limit: int = Field(default=40, ge=1, le=200)
     conversation_graph_result_limit: int = Field(default=5, ge=1, le=40)
     conversation_graph_batch_size: int = Field(default=250, ge=10, le=2_000)

@@ -168,6 +168,22 @@ export type LinguisticAnalysis = {
   guardrail: string
 }
 
+export type ReasoningGraph = {
+  run: ConversationGraphRun
+  propositions: Array<{ id: string; text: string; type: string }>
+  relations: Array<{
+    id: string
+    annotation_id: string
+    source_proposition_id: string
+    target_proposition_id: string
+    relation_type: string
+    method: string
+    raw_score: number | null
+    status: string
+  }>
+  guardrail: string
+}
+
 export type Workspace = {
   corpus: Corpus
   messages: MessageItem[]

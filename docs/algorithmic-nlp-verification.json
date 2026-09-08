@@ -1,17 +1,18 @@
 {
   "schema_version": 1,
-  "phase": "IMPLEMENTED_LINGUISTIC_EXPANSION_SLICE",
+  "phase": "IMPLEMENTED_REASONING_GRAPH_SLICE",
   "source_sha256": "8fb13ae85939bafea092b90c8a19242f4d383731c35f1faf10fe428532db0c60",
-  "roadmap_sha256": "cbaacf2bee1fe8d453b3af6c5630560367959fa3eb4f13d4781d5c92154b7e6e",
-  "ledger_sha256": "573d6a39bd85d275eb70463e5308ce7ec2827a979da66994cd3ad866c1bef1e3",
+  "roadmap_sha256": "dcecd4a677db8f5a3fdfebbf64f648b1d5b33f17da488365e5313f4d547d31c2",
+  "ledger_sha256": "9f9567c58db8643f85acab212b6797295e9ef24fd01f0882adb079dcd7605638",
   "source_area_coverage": "22/22",
   "requirements": {
-    "active": 5,
-    "deferred": 17,
+    "active": 7,
+    "deferred": 15,
     "superseded": 0
   },
   "first_phase_ids": ["NLP-01", "NLP-02", "NLP-04"],
   "linguistic_expansion_ids": ["NLP-03", "NLP-22"],
+  "reasoning_graph_ids": ["NLP-05", "NLP-06"],
   "independent_plan_review": {
     "status": "PASS_AFTER_REPAIR",
     "repairs": [
@@ -31,6 +32,8 @@
     "frontend_lint": "PASS",
     "frontend_build": "PASS",
     "sqlite_migration_upgrade_downgrade_upgrade": "PASS",
-    "postgresql_migration_upgrade_downgrade_upgrade": "PASS"
+    "postgresql_migration_upgrade_downgrade_upgrade": "PASS",
+    "reasoning_graph_sqlite_migration_upgrade_downgrade_upgrade": "PASS",
+    "reasoning_graph_postgresql_migration": "NOT_RUN: Docker daemon unavailable"
   }
 }

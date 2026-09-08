@@ -10,6 +10,7 @@ import { EvidenceChain } from './components/EvidenceChain'
 import { ImportDialog } from './components/ImportDialog'
 import { MessageTimeline } from './components/MessageTimeline'
 import { LinguisticWorkbench } from './components/LinguisticWorkbench'
+import { ReasoningGraphWorkbench } from './components/ReasoningGraphWorkbench'
 import { ObservatoryOverview } from './components/ObservatoryOverview'
 import { RunStrip } from './components/RunStrip'
 import { Sidebar } from './components/Sidebar'
@@ -138,6 +139,8 @@ export default function App() {
               setActiveNav('Корпусы')
             }}
           />
+        ) : activeNav === 'Аргументы' ? (
+          <ReasoningGraphWorkbench corpusId={corpus.id} />
         ) : (
           <main className="workspace-grid">
             <MessageTimeline

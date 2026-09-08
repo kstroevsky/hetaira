@@ -11,6 +11,7 @@ from prometheus_observatory.model_gateway import (
     LocalLinguisticAnalysisAdapter,
     LocalOpenAICompatibleAdapter,
     LocalOpenAICompatibleEmbeddingAdapter,
+    LocalPairClassificationAdapter,
     ModelPolicy,
     RemoteOpenAICompatibleAdapter,
     pseudonymize_bundle,
@@ -95,6 +96,26 @@ def test_linguistic_adapter_requires_literal_loopback_and_pinned_revision() -> N
         LocalLinguisticAnalysisAdapter(
             base_url="http://127.0.0.1:8081/v1",
             model="russian-parser",
+            model_revision="unversioned",
+        )
+
+
+def test_pair_classifier_requires_literal_loopback_and_pinned_revision() -> None:
+    assert LocalPairClassificationAdapter(
+        base_url="http://127.0.0.1:8082/v1",
+        model="multilingual-nli",
+        model_revision="sha256:nli",
+    ).capabilities.pair_classification
+    with pytest.raises(ValueError, match="literal loopback"):
+        LocalPairClassificationAdapter(
+            base_url="https://127.0.0.1:8082/v1",
+            model="multilingual-nli",
+            model_revision="sha256:nli",
+        )
+    with pytest.raises(ValueError, match="pinned"):
+        LocalPairClassificationAdapter(
+            base_url="http://127.0.0.1:8082/v1",
+            model="multilingual-nli",
             model_revision="unversioned",
         )
 

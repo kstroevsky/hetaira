@@ -44,6 +44,11 @@ available without additional models. Dependency parses, named entities, corefere
 semantic roles are marked unavailable unless a typed local parser endpoint and pinned revision are
 configured.
 
+The **Аргументы** workspace derives provisional claim/premise/evidence components and candidate
+`SUPPORTS`/`ATTACKS` relations from proposition and conversation graphs. An optional pinned local
+NLI classifier contributes a separate `ENTAILMENT`/`CONTRADICTION`/`NEUTRAL` channel and never
+determines truth.
+
 The default zero-configuration database is SQLite. PostgreSQL 18 + pgvector is the intended canonical deployment:
 
 ```bash

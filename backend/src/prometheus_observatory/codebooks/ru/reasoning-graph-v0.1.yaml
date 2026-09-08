@@ -1,0 +1,14 @@
+codebook_key: reasoning-graph-ru
+version: 0.1.0
+language: ru
+validated: false
+status: provisional
+argument_components:
+  labels: [CLAIM, PREMISE, EVIDENCE]
+argument_relations:
+  labels: [SUPPORTS, ATTACKS, NONE]
+  guardrail: Candidate and rule outputs are not accepted edges without review.
+nli:
+  labels: [ENTAILMENT, CONTRADICTION, NEUTRAL]
+  role: independent_challenger
+  guardrail: NLI output does not determine truth or automatically define an argument relation.

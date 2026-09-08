@@ -26,6 +26,7 @@ from .models import (
 from .object_store import ContentAddressedStore
 from .observatory import ObservatoryBuilder
 from .ontology import PrivacyPolicy
+from .reasoning_graph import ReasoningGraphService
 from .research_planner import AnalysisPlan, BoundedPlannerRuntime
 from .retrieval import HybridRetriever
 from .schemas import (
@@ -41,6 +42,7 @@ from .schemas import (
     ManualAnnotationCreate,
     MessageListItem,
     MicroscopeResponse,
+    ReasoningRunCreate,
     RunRead,
     TaskJudgmentSubmit,
     WorkspaceResponse,
@@ -283,6 +285,34 @@ def get_message_linguistics(
         return LinguisticAnalysisService(session).message_analysis(
             corpus_id, message_id, run_id=run_id
         )
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.post("/corpora/{corpus_id}/reasoning-runs", status_code=201)
+def create_reasoning_run(
+    corpus_id: str,
+    payload: ReasoningRunCreate,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        service = ReasoningGraphService(session)
+        run = service.create(corpus_id, include_nli=payload.include_nli)
+        return service.run_payload(run.id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/reasoning-graph")
+def get_reasoning_graph(
+    corpus_id: str,
+    run_id: str | None = None,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        return ReasoningGraphService(session).graph(corpus_id, run_id=run_id)
     except LookupError as error:
         raise HTTPException(404, str(error)) from error
 
