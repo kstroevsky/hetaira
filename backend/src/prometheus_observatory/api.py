@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from .analyzer import DeterministicAnalyzer
 from .annotation_workbench import AnnotationWorkbenchService
 from .config import get_settings
+from .conversation_graph import ConversationGraphService
 from .database import get_session
 from .episode_microscope import EpisodeMicroscopeService
 from .evaluation import evaluate_frozen_set
@@ -30,6 +31,7 @@ from .schemas import (
     AnnotationReviewCreate,
     AnnotationSetCreate,
     AnnotationSetRead,
+    ConversationGraphRunCreate,
     CorpusCreate,
     CorpusRead,
     ImportResult,
@@ -121,6 +123,101 @@ def analyze_corpus(corpus_id: str, session: Session = Depends(get_session)) -> A
     except (LookupError, ValueError) as error:
         session.rollback()
         raise HTTPException(404 if isinstance(error, LookupError) else 422, str(error)) from error
+
+
+@router.post("/corpora/{corpus_id}/conversation-graph-runs", status_code=201)
+def create_conversation_graph_run(
+    corpus_id: str,
+    payload: ConversationGraphRunCreate,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        service = ConversationGraphService(session)
+        run = service.create(
+            corpus_id,
+            include_encoder=payload.include_encoder,
+            candidate_limit=payload.candidate_limit,
+            result_limit=payload.result_limit,
+            execute=payload.execute,
+        )
+        return service.run_payload(run.id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@router.get("/conversation-graph-runs/{run_id}")
+def get_conversation_graph_run(run_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        return ConversationGraphService(session).run_payload(run_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.post("/conversation-graph-runs/{run_id}/cancel")
+def cancel_conversation_graph_run(run_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        service = ConversationGraphService(session)
+        run = service.cancel(run_id)
+        return service.run_payload(run.id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.post("/conversation-graph-runs/{run_id}/resume")
+def resume_conversation_graph_run(run_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        service = ConversationGraphService(session)
+        run = service.resume(run_id)
+        return service.run_payload(run.id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/conversation-graph")
+def get_conversation_graph(
+    corpus_id: str,
+    run_id: str | None = None,
+    message_id: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        return ConversationGraphService(session).graph(
+            corpus_id,
+            run_id=run_id,
+            message_id=message_id,
+            offset=max(offset, 0),
+            limit=limit,
+        )
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/conversations/{conversation_id}/messages")
+def search_conversation_messages(
+    corpus_id: str,
+    conversation_id: str,
+    q: str = "",
+    limit: int = 100,
+    before_message_id: str | None = None,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        items = ConversationGraphService(session).search_conversation_messages(
+            corpus_id,
+            conversation_id,
+            query=q,
+            limit=limit,
+            before_message_id=before_message_id,
+        )
+        return {"items": items}
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
 
 
 @router.get("/corpora/{corpus_id}/observatory")
@@ -328,6 +425,22 @@ def create_reference_pilot(
         raise HTTPException(404, str(error)) from error
 
 
+@router.post(
+    "/corpora/{corpus_id}/conversation-graph-reference",
+    response_model=AnnotationSetRead,
+    status_code=201,
+)
+def create_conversation_graph_reference(
+    corpus_id: str, session: Session = Depends(get_session)
+) -> AnnotationSet:
+    try:
+        return AnnotationWorkbenchService(session).create_conversation_graph_reference(corpus_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
 @router.get("/corpora/{corpus_id}/annotation-sets", response_model=list[AnnotationSetRead])
 def list_annotation_sets(
     corpus_id: str, session: Session = Depends(get_session)
@@ -366,6 +479,20 @@ def annotation_set_statistics(
         return AnnotationWorkbenchService(session).statistics(annotation_set_id)
     except LookupError as error:
         raise HTTPException(404, str(error)) from error
+
+
+@router.get("/annotation-sets/{annotation_set_id}/conversation-graph-evaluation")
+def conversation_graph_evaluation(
+    annotation_set_id: str,
+    run_id: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        return ConversationGraphService(session).evaluate_reference(annotation_set_id, run_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
 
 
 @router.get("/annotation-units/{unit_id}/context")

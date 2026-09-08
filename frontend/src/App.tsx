@@ -5,6 +5,7 @@ import { fetchCorpora, fetchMicroscope, fetchWorkspace, uploadExport } from './a
 import type { Microscope } from './api/types'
 import { AnalysisMicroscope } from './components/AnalysisMicroscope'
 import { AnnotationWorkbench } from './components/AnnotationWorkbench'
+import { ConversationGraphWorkbench } from './components/ConversationGraphWorkbench'
 import { EvidenceChain } from './components/EvidenceChain'
 import { ImportDialog } from './components/ImportDialog'
 import { MessageTimeline } from './components/MessageTimeline'
@@ -117,6 +118,14 @@ export default function App() {
         ) : activeNav === 'Разметка' ? (
           <AnnotationWorkbench
             corpusId={corpus.id}
+          />
+        ) : activeNav === 'Граф диалога' ? (
+          <ConversationGraphWorkbench
+            corpusId={corpus.id}
+            onOpenEvidence={(messageId) => {
+              setSelectedMessageId(messageId)
+              setActiveNav('Корпусы')
+            }}
           />
         ) : (
           <main className="workspace-grid">

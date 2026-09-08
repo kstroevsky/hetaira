@@ -46,6 +46,17 @@ GOLD_TASKS = (
     "grounding",
     "argumentation",
 )
+CONVERSATION_GRAPH_TASKS = ("reply_target", "discourse_relation")
+DISCOURSE_RELATION_LABELS = {
+    "ANSWERS",
+    "ELABORATES",
+    "CONTRASTS",
+    "ACKNOWLEDGES",
+    "CORRECTS",
+    "CLARIFIES",
+    "ACCEPTS",
+    "REJECTS",
+}
 JUDGMENT_STATUSES = {"PRESENT", "ABSENT", "ABSTAIN", "NOT_ANNOTATED"}
 JUDGMENT_SLOTS = {"A", "B", "FINAL"}
 RARE_CUES = {
@@ -87,6 +98,31 @@ class AnnotationWorkbenchService:
             judgment_protocol="blind_ab_final_v1",
         )
 
+    def create_conversation_graph_reference(self, corpus_id: str) -> AnnotationSet:
+        corpus = self.session.get(Corpus, corpus_id)
+        if corpus is None:
+            raise LookupError("corpus not found")
+        snapshot = self.session.scalar(
+            select(CorpusSnapshot)
+            .where(CorpusSnapshot.corpus_id == corpus.id)
+            .order_by(CorpusSnapshot.created_at.desc(), CorpusSnapshot.id.desc())
+        )
+        if snapshot is None:
+            raise LookupError("corpus snapshot not found")
+        slug = re.sub(r"[^a-z0-9а-яё]+", "-", corpus.name.casefold()).strip("-")
+        return self.create_set(
+            corpus_id=corpus.id,
+            snapshot_id=snapshot.id,
+            name=f"{slug}-conversation-graph-reference-v1",
+            target_size=min(80, snapshot.message_count),
+            codebook_key="conversation-graph-ru",
+            codebook_version="0.1.0",
+            seed=f"{corpus.id}:conversation-graph-reference-v1",
+            double_annotation_fraction=0,
+            required_tasks=list(CONVERSATION_GRAPH_TASKS),
+            judgment_protocol="single_final_reference_v1",
+        )
+
     def create_set(
         self,
         *,
@@ -110,10 +146,14 @@ class AnnotationWorkbenchService:
         if not 1 <= target_size <= 1_200:
             raise ValueError("target_size must be between 1 and 1200")
         required_tasks = required_tasks or list(GOLD_TASKS)
-        unknown_tasks = set(required_tasks) - set(GOLD_TASKS)
+        unknown_tasks = set(required_tasks) - set(GOLD_TASKS) - set(CONVERSATION_GRAPH_TASKS)
         if unknown_tasks:
             raise ValueError(f"unknown required tasks: {sorted(unknown_tasks)}")
-        if judgment_protocol not in {"legacy_review", "blind_ab_final_v1"}:
+        if judgment_protocol not in {
+            "legacy_review",
+            "blind_ab_final_v1",
+            "single_final_reference_v1",
+        }:
             raise ValueError("unknown judgment protocol")
         existing = self.session.scalar(
             select(AnnotationSet).where(
@@ -177,7 +217,7 @@ class AnnotationWorkbenchService:
         )
         self.session.add_all([run, annotation_set])
         self.session.flush()
-        if judgment_protocol == "blind_ab_final_v1":
+        if judgment_protocol in {"blind_ab_final_v1", "single_final_reference_v1"}:
             candidates, sampling_diagnostics = self._whole_snapshot_candidates(
                 snapshot_id, target_size, seed
             )
@@ -192,7 +232,13 @@ class AnnotationWorkbenchService:
             ]
         for ordinal, candidate in enumerate(candidates):
             message, revision, episode_message, strata = candidate
-            group_id = episode_message.episode_id if episode_message else message.conversation_id
+            group_id = (
+                message.conversation_id
+                if judgment_protocol == "single_final_reference_v1"
+                else episode_message.episode_id
+                if episode_message
+                else message.conversation_id
+            )
             annotation_unit = AnnotationUnit(
                 id=new_id(),
                 annotation_set_id=annotation_set.id,
@@ -217,7 +263,10 @@ class AnnotationWorkbenchService:
 
     def statistics(self, annotation_set_id: str) -> dict[str, Any]:
         annotation_set = self._set(annotation_set_id)
-        if annotation_set.sampling_spec.get("judgment_protocol") == "blind_ab_final_v1":
+        if annotation_set.sampling_spec.get("judgment_protocol") in {
+            "blind_ab_final_v1",
+            "single_final_reference_v1",
+        }:
             return self._judgment_statistics(annotation_set)
         units = list(
             self.session.scalars(
@@ -456,7 +505,7 @@ class AnnotationWorkbenchService:
             },
             "freeze_ready": bool(units) and confirmed_units == len(units),
             "manifest_hash": annotation_set.manifest_hash,
-            "judgment_protocol": "blind_ab_final_v1",
+            "judgment_protocol": annotation_set.sampling_spec.get("judgment_protocol"),
         }
 
     @staticmethod
@@ -831,6 +880,8 @@ class AnnotationWorkbenchService:
         if any(annotation["kind"] != task for annotation in annotations):
             raise ValueError("judgment annotations must match the judgment task")
         self._validate_task_annotations(task, status, annotations)
+        if task in CONVERSATION_GRAPH_TASKS and status == "PRESENT":
+            self._validate_graph_targets(annotation_set, unit, task, annotations)
         independent = list(
             self.session.scalars(
                 select(GoldTaskJudgment).where(
@@ -845,7 +896,10 @@ class AnnotationWorkbenchService:
             other = next((item for item in independent if item.slot == other_slot), None)
             if other is not None and other.annotator == annotator:
                 raise ValueError("independent A/B judgments require distinct annotators")
-        if slot == "FINAL":
+        if (
+            slot == "FINAL"
+            and annotation_set.sampling_spec.get("judgment_protocol") == "blind_ab_final_v1"
+        ):
             if not independent or any(item.status == "NOT_ANNOTATED" for item in independent):
                 raise ValueError("FINAL adjudication requires all independent judgments")
             if annotator in {item.annotator for item in independent}:
@@ -946,6 +1000,82 @@ class AnnotationWorkbenchService:
                 raise ValueError(
                     "PRESENT argument relation requires source, target, and relation type"
                 )
+            if task == "reply_target" and not (
+                value.get("target_message_id") or value.get("target_message_ids")
+            ):
+                raise ValueError("PRESENT reply target requires at least one target message")
+            if task == "discourse_relation" and not (
+                value.get("source_message_id")
+                and value.get("target_message_id")
+                and value.get("relation_type")
+            ):
+                raise ValueError(
+                    "PRESENT discourse relation requires source, target, and relation type"
+                )
+            if (
+                task == "discourse_relation"
+                and value.get("relation_type") not in DISCOURSE_RELATION_LABELS
+            ):
+                raise ValueError("unknown discourse relation type")
+
+    def _validate_graph_targets(
+        self,
+        annotation_set: AnnotationSet,
+        unit: AnnotationUnit,
+        task: str,
+        annotations: list[dict[str, Any]],
+    ) -> None:
+        anchor = self.session.get(Message, unit.object_id)
+        if anchor is None:
+            raise RuntimeError("annotation anchor message is missing")
+        target_ids: set[str] = set()
+        for annotation in annotations:
+            value = annotation["value"]
+            if value.get("source_message_id") not in {None, anchor.id}:
+                raise ValueError("graph relation source must be the anchor message")
+            if task == "discourse_relation" and value.get("source_message_id") != anchor.id:
+                raise ValueError("discourse relation source must be the anchor message")
+            target_ids.update(value.get("target_message_ids", []))
+            if value.get("target_message_id"):
+                target_ids.add(value["target_message_id"])
+        rows = list(
+            self.session.execute(
+                select(Message)
+                .join(
+                    SnapshotMessageRevision,
+                    SnapshotMessageRevision.message_id == Message.id,
+                )
+                .where(
+                    SnapshotMessageRevision.snapshot_id == annotation_set.snapshot_id,
+                    Message.id.in_(target_ids),
+                    Message.id != anchor.id,
+                    Message.conversation_id == anchor.conversation_id,
+                    Message.resolved_timestamp <= anchor.resolved_timestamp,
+                )
+            )
+        )
+        messages = {row[0].id: row[0] for row in rows}
+        if set(messages) != target_ids:
+            raise ValueError(
+                "graph targets must be earlier messages in the same snapshot conversation"
+            )
+        revisions = dict(
+            self.session.execute(
+                select(
+                    SnapshotMessageRevision.message_id,
+                    SnapshotMessageRevision.revision_id,
+                ).where(
+                    SnapshotMessageRevision.snapshot_id == annotation_set.snapshot_id,
+                    SnapshotMessageRevision.message_id.in_(target_ids),
+                )
+            ).all()
+        )
+        for annotation in annotations:
+            value = annotation["value"]
+            if target_id := value.get("target_message_id"):
+                value["target_revision_id"] = revisions[target_id]
+            if target_list := value.get("target_message_ids"):
+                value["target_revision_ids"] = [revisions[target_id] for target_id in target_list]
 
     def unit_context(self, unit_id: str, slot: str) -> dict[str, Any]:
         if slot not in JUDGMENT_SLOTS:
@@ -1064,6 +1194,7 @@ class AnnotationWorkbenchService:
             "slot": slot,
             "blind": slot in {"A", "B"},
             "anchor_message_id": anchor.id,
+            "anchor_conversation_id": anchor.conversation_id,
             "anchor_revision_id": unit.revision_id,
             "episode_id": episode_id,
             "episode_size": episode_size,
@@ -1094,10 +1225,8 @@ class AnnotationWorkbenchService:
                 AnnotationSetAnnotation.annotation_id == annotation_id
             )
         )
-        if link is None:
-            raise ValueError("annotation is not part of an annotation set")
-        annotation_set = self._set(link.annotation_set_id)
-        if annotation_set.status != "draft":
+        annotation_set = self._set(link.annotation_set_id) if link is not None else None
+        if annotation_set is not None and annotation_set.status != "draft":
             raise ValueError("frozen annotation sets cannot be reviewed")
         review = AnnotationReview(
             id=new_id(),
@@ -1107,10 +1236,14 @@ class AnnotationWorkbenchService:
             reviewed_at=datetime.now(UTC),
         )
         self.session.add(review)
-        unit = self.session.get(AnnotationUnit, link.unit_id)
-        if unit is not None:
-            unit.status = "reviewed" if decision == "confirmed" else decision
+        if link is not None:
+            unit = self.session.get(AnnotationUnit, link.unit_id)
+            if unit is not None:
+                unit.status = "reviewed" if decision == "confirmed" else decision
         self.session.flush()
+        if annotation_set is None:
+            self.session.commit()
+            return review
         total_units = (
             self.session.scalar(
                 select(func.count())
@@ -1140,7 +1273,10 @@ class AnnotationWorkbenchService:
         annotation_set = self._set(annotation_set_id)
         if annotation_set.status == "frozen":
             return annotation_set
-        if annotation_set.sampling_spec.get("judgment_protocol") == "blind_ab_final_v1":
+        if annotation_set.sampling_spec.get("judgment_protocol") in {
+            "blind_ab_final_v1",
+            "single_final_reference_v1",
+        }:
             return self._freeze_judgment_set(annotation_set)
         units = list(
             self.session.scalars(
@@ -1287,7 +1423,10 @@ class AnnotationWorkbenchService:
         annotation_set = self._set(annotation_set_id)
         if annotation_set.status != "frozen":
             raise ValueError("only frozen annotation sets can be exported")
-        if annotation_set.sampling_spec.get("judgment_protocol") == "blind_ab_final_v1":
+        if annotation_set.sampling_spec.get("judgment_protocol") in {
+            "blind_ab_final_v1",
+            "single_final_reference_v1",
+        }:
             unit_ids = list(
                 self.session.scalars(
                     select(AnnotationUnit.id)
@@ -1325,7 +1464,10 @@ class AnnotationWorkbenchService:
         message: Message,
         revision: MessageRevision,
     ) -> dict[str, Any]:
-        if annotation_set.sampling_spec.get("judgment_protocol") == "blind_ab_final_v1":
+        if annotation_set.sampling_spec.get("judgment_protocol") in {
+            "blind_ab_final_v1",
+            "single_final_reference_v1",
+        }:
             judgments = list(
                 self.session.scalars(
                     select(GoldTaskJudgment).where(GoldTaskJudgment.unit_id == unit.id)
@@ -1591,7 +1733,8 @@ class AnnotationWorkbenchService:
         }
 
     def _create_task_judgments(self, annotation_set: AnnotationSet) -> None:
-        if annotation_set.sampling_spec.get("judgment_protocol") != "blind_ab_final_v1":
+        protocol = annotation_set.sampling_spec.get("judgment_protocol")
+        if protocol not in {"blind_ab_final_v1", "single_final_reference_v1"}:
             return
         tasks = list(annotation_set.sampling_spec.get("required_tasks", GOLD_TASKS))
         units = list(
@@ -1611,8 +1754,8 @@ class AnnotationWorkbenchService:
             )
         )
         for unit in units:
-            slots = ["A", "FINAL"]
-            if unit.strata.get("double_annotation_required"):
+            slots = ["FINAL"] if protocol == "single_final_reference_v1" else ["A", "FINAL"]
+            if protocol == "blind_ab_final_v1" and unit.strata.get("double_annotation_required"):
                 slots.insert(1, "B")
             for task in tasks:
                 for slot in slots:
@@ -1633,7 +1776,7 @@ class AnnotationWorkbenchService:
                                 "codebook_key": annotation_set.codebook_key,
                                 "codebook_version": annotation_set.codebook_version,
                                 "codebook_artifact_hash": annotation_set.codebook_artifact_hash,
-                                "judgment_protocol": "blind_ab_final_v1",
+                                "judgment_protocol": protocol,
                             },
                         )
                     )

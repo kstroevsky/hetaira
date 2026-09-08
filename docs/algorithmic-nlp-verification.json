@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "phase": "IMPLEMENTED_FIRST_PHASE",
+  "source_sha256": "8fb13ae85939bafea092b90c8a19242f4d383731c35f1faf10fe428532db0c60",
+  "roadmap_sha256": "f1005be68037298061b84809a3a0a99be52efbd40df25b8d4956859d01af0b39",
+  "ledger_sha256": "55e2fe403538d9b95d7432f12de0f3e5bba9c0b2ad7358e46d86e09ad7807fac",
+  "source_area_coverage": "22/22",
+  "requirements": {
+    "active": 3,
+    "deferred": 19,
+    "superseded": 0
+  },
+  "first_phase_ids": ["NLP-01", "NLP-02", "NLP-04"],
+  "independent_plan_review": {
+    "status": "PASS_AFTER_REPAIR",
+    "repairs": [
+      "rankings do not automatically accept response edges",
+      "reference target discovery searches the full earlier conversation",
+      "probabilistic pair models and joint graph decoding remain explicit deferred challengers"
+    ]
+  },
+  "mechanical_plan_guard": {
+    "status": "NOT_APPLICABLE",
+    "reason": "This is the first repository roadmap derived from non-canonical design input, not a preservation revision."
+  },
+  "implementation_checks": {
+    "backend_tests": "PASS",
+    "backend_lint": "PASS",
+    "frontend_tests": "PASS",
+    "frontend_lint": "PASS",
+    "frontend_build": "PASS",
+    "sqlite_migration_upgrade_downgrade_upgrade": "PASS",
+    "postgresql_migration_upgrade_downgrade_upgrade": "PASS"
+  }
+}

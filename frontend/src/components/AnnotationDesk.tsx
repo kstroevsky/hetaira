@@ -16,6 +16,8 @@ const kinds = [
   ['epistemic_state', 'Эпистемика'],
   ['grounding', 'Общее знание'],
   ['argumentation', 'Аргументация'],
+  ['reply_target', 'Цель ответа'],
+  ['discourse_relation', 'Дискурсивная связь'],
 ] as const
 
 type AnnotationDeskProps = {
@@ -24,6 +26,7 @@ type AnnotationDeskProps = {
   activeSet: AnnotationSet | undefined
   statistics: AnnotationSetStatistics | undefined
   usesTaskJudgments: boolean
+  singleFinal: boolean
   unitContext: AnnotationUnitContext | undefined
   units: AnnotationUnit[]
   selectedUnit: AnnotationUnit | undefined
@@ -93,11 +96,11 @@ function DeskToolbar(props: AnnotationDeskProps) {
             value={props.slot}
             onChange={(event) => props.onSlotChange(event.target.value as 'A' | 'B' | 'FINAL')}
           >
-            <option value="A">Аннотатор A · blind</option>
-            {props.selectedUnit?.judgment_progress?.B ? (
+            {!props.singleFinal ? <option value="A">Аннотатор A · blind</option> : null}
+            {!props.singleFinal && props.selectedUnit?.judgment_progress?.B ? (
               <option value="B">Аннотатор B · blind</option>
             ) : null}
-            <option value="FINAL">FINAL · adjudication</option>
+            <option value="FINAL">FINAL · {props.singleFinal ? 'single reference' : 'adjudication'}</option>
           </select>
         </label>
       ) : null}

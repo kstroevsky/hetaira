@@ -13,6 +13,8 @@ The current Foundation release implements the first complete vertical slice:
 - traceable Russian lexical retrieval and a bounded research-plan contract;
 - loopback-only local model routing with budgets, JSON Schema validation, and invocation audits;
 - a full React analysis microscope and an explicitly unvalidated 100-message English demo.
+- a corpus-wide, resumable provisional response/discourse graph with separate source replies,
+  lexical candidates, an optional loopback-only embedding challenger, and human review.
 
 High-level influence, power, persuasion, coalition, forecasting, and pivotal-moment systems remain gated behind validated primitive measurements. The ontology already reserves their evidence/provenance contracts; the application does not invent direct scores for them.
 
@@ -28,6 +30,11 @@ make frontend
 ```
 
 Open [http://localhost:5173](http://localhost:5173). API documentation is at [http://localhost:8000/docs](http://localhost:8000/docs).
+
+The **Граф диалога** workspace builds message-level `RESPONDS_TO` candidates and
+discourse-relation proposals without changing source-native `REPLIES_TO` edges. Similarity
+scores are rankings, not probabilities. Configure an optional local embedding endpoint in
+`.env`; model provisioning and downloads remain explicit operator actions.
 
 The default zero-configuration database is SQLite. PostgreSQL 18 + pgvector is the intended canonical deployment:
 

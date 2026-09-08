@@ -172,6 +172,13 @@ class RunRead(ORMModel):
     error: str | None
 
 
+class ConversationGraphRunCreate(BaseModel):
+    include_encoder: bool = True
+    execute: bool = True
+    candidate_limit: int = Field(default=40, ge=1, le=200)
+    result_limit: int = Field(default=5, ge=1, le=40)
+
+
 class WorkspaceResponse(BaseModel):
     corpus: CorpusRead
     messages: list[MessageListItem]

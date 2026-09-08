@@ -169,6 +169,76 @@ describe('Prometheus workbench', () => {
     expect(screen.getByRole('button', { name: 'Создать reference pilot' })).toBeEnabled()
   })
 
+  it('keeps source replies and inferred graph proposals visibly separate', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = []
+    const graph = {
+      run: {
+        id: 'graph-run', snapshot_id: 'snapshot-12345678', run_type: 'conversation-graph',
+        status: 'completed', progress: 1, configuration: {}, started_at: null,
+        completed_at: '2025-01-01T10:00:00Z', error: null,
+        tasks: [{
+          id: 'encoder-task', task_key: 'encoder_challenger', status: 'unavailable',
+          progress: 1, checkpoint: {}, error: 'not configured',
+        }],
+      },
+      messages: [
+        { id: 'm0', conversation_id: 'c0', external_id: '0', revision_id: 'r0', sender_id: 'p2', sender_name: 'Борис', sent_at: '2025-01-01T08:59:00Z', text: 'Проверим?', text_hash: 'zero-hash' },
+        { id: 'm1', conversation_id: 'c0', external_id: '1', revision_id: 'r1', sender_id: 'p1', sender_name: 'Иван', sent_at: '2025-01-01T09:00:00Z', text: 'Да, проверим.', text_hash: 'one-hash' },
+      ],
+      explicit_replies: [{ source_message_id: 'm1', target_message_id: 'm0', relation_type: 'REPLIES_TO', source_native: true, confidence: 1 }],
+      response_candidates: [{
+        id: 'candidate-1', annotation_id: 'annotation-1', source_message_id: 'm1',
+        target_message_id: 'm0', source_revision_id: 'r1', target_revision_id: 'r0',
+        method: 'lexical-cosine-ru@0.1.0', rank: 1, raw_score: 0.5,
+        score_semantics: 'uncalibrated_similarity', status: 'provisional', review: null,
+      }],
+      discourse_relations: [{
+        id: 'discourse-1', annotation_id: 'annotation-2', source_message_id: 'm1',
+        target_message_id: 'm0', source_revision_id: 'r1', target_revision_id: 'r0',
+        relation_type: 'ANSWERS', method: 'conversation-graph-rules-ru@0.1.0',
+        raw_score: 0.5, status: 'provisional', review: null,
+      }],
+      page: { offset: 0, limit: 250 },
+      guardrail: 'Similarity is not probability.',
+    }
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      calls.push({ url, init })
+      const data = url.includes('/annotations/annotation-1/reviews')
+        ? { id: 'review-1', decision: 'confirmed' }
+        : url.includes('/conversation-graph')
+        ? graph
+        : url.includes('/observatory')
+        ? observatory
+        : url.includes('/api/corpora')
+        ? [workspace.corpus]
+        : url.includes('/microscope')
+        ? workspace.microscope
+        : workspace
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <App />
+      </QueryClientProvider>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Граф диалога' }))
+    expect(await screen.findByText('Исходные ответы')).toBeVisible()
+    expect(screen.getByText('Кандидаты ответа')).toBeVisible()
+    expect(screen.getByText('Дискурсивные отношения')).toBeVisible()
+    expect(screen.getAllByText('REPLIES_TO').length).toBeGreaterThan(0)
+    expect(screen.getByText('отвечает')).toBeVisible()
+    fireEvent.click(screen.getAllByLabelText('Подтвердить связь')[0])
+    await waitFor(() => expect(
+      calls.some((call) => call.url.includes('/annotations/annotation-1/reviews')),
+    ).toBe(true))
+  })
+
   it('shows full-set gold-ru-v1 validation statistics', async () => {
     const annotationSet = {
       id: 'set-v1', corpus_id: 'c1', snapshot_id: 'snapshot-12345678', name: 'archive-reference-ru-pilot-v1',

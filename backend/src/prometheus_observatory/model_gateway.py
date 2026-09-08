@@ -38,6 +38,7 @@ class ModelCapabilities(BaseModel):
     log_probabilities: bool = False
     deterministic_seed: bool = False
     batch: bool = False
+    embeddings: bool = False
     context_window: int = Field(default=8192, ge=1024)
 
 
@@ -75,6 +76,15 @@ class StructuredResult(BaseModel):
     request_hash: str
 
 
+class EmbeddingResult(BaseModel):
+    vectors: list[list[float]]
+    provider: str
+    model: str
+    latency_ms: int
+    request_hash: str
+    truncated: list[bool] = Field(default_factory=list)
+
+
 class ModelAdapter(Protocol):
     provider: str
     model: str
@@ -90,6 +100,18 @@ class ModelAdapter(Protocol):
         output_schema: dict[str, Any],
         policy: ModelPolicy,
     ) -> StructuredResult: ...
+
+
+class EmbeddingAdapter(Protocol):
+    provider: str
+    model: str
+    model_revision: str
+    capabilities: ModelCapabilities
+    input_price_per_million: float
+    output_price_per_million: float
+    is_local: bool
+
+    def embed(self, bundle: EvidenceBundle, policy: ModelPolicy) -> EmbeddingResult: ...
 
 
 @dataclass(slots=True)
@@ -186,6 +208,66 @@ class LocalOpenAICompatibleAdapter(OpenAICompatibleAdapter):
 
 
 @dataclass(slots=True)
+class LocalOpenAICompatibleEmbeddingAdapter:
+    """OpenAI-compatible embedding client restricted to literal loopback HTTP."""
+
+    base_url: str
+    model: str
+    model_revision: str = "unversioned"
+    provider: str = "local-openai-compatible-embeddings"
+    capabilities: ModelCapabilities = field(
+        default_factory=lambda: ModelCapabilities(batch=True, embeddings=True)
+    )
+    timeout_seconds: float = 120
+    input_price_per_million: float = 0
+    output_price_per_million: float = 0
+    is_local: bool = True
+
+    def __post_init__(self) -> None:
+        parsed = urlparse(self.base_url)
+        if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "::1"}:
+            raise ValueError(
+                "local embedding URL must use http and literal loopback 127.0.0.1 or [::1]"
+            )
+        if parsed.username or parsed.password:
+            raise ValueError("credentials are not permitted in local embedding URLs")
+
+    def embed(self, bundle: EvidenceBundle, policy: ModelPolicy) -> EmbeddingResult:
+        if policy.privacy_policy != PrivacyPolicy.LOCAL_ONLY:
+            raise PermissionError("embedding challenger only accepts LOCAL_ONLY policy")
+        started = time.monotonic()
+        with httpx.Client(
+            timeout=self.timeout_seconds,
+            follow_redirects=False,
+            trust_env=False,
+        ) as client:
+            response = client.post(
+                f"{self.base_url.rstrip('/')}/embeddings",
+                headers={"Content-Type": "application/json"},
+                json={"model": self.model, "input": [item.text for item in bundle.items]},
+            )
+            if response.is_redirect:
+                raise PermissionError("embedding endpoint redirects are forbidden")
+            response.raise_for_status()
+        payload = response.json()
+        rows = sorted(payload.get("data", []), key=lambda row: row.get("index", 0))
+        vectors = [row.get("embedding") for row in rows]
+        if len(vectors) != len(bundle.items) or any(not isinstance(row, list) for row in vectors):
+            raise ValueError("embedding response does not match the requested batch")
+        truncated = payload.get("truncated")
+        if not isinstance(truncated, list) or len(truncated) != len(vectors):
+            truncated = [False] * len(vectors)
+        return EmbeddingResult(
+            vectors=vectors,
+            provider=self.provider,
+            model=self.model,
+            latency_ms=round((time.monotonic() - started) * 1000),
+            request_hash=bundle.request_hash(),
+            truncated=[bool(value) for value in truncated],
+        )
+
+
+@dataclass(slots=True)
 class RemoteOpenAICompatibleAdapter(OpenAICompatibleAdapter):
     provider: str = "remote-openai-compatible"
 
@@ -205,11 +287,16 @@ class TaskCapabilityRegistry:
     def register(self, task: str, *, minimum_context: int = 1024) -> None:
         self._requirements[task] = minimum_context
 
-    def require(self, task: str, adapter: ModelAdapter) -> None:
+    def require(self, task: str, adapter: ModelAdapter | EmbeddingAdapter) -> None:
         if task not in self._requirements:
             raise LookupError(f"unregistered model task: {task}")
         if adapter.capabilities.context_window < self._requirements[task]:
             raise ValueError(f"adapter context window is insufficient for {task}")
+
+    def require_embeddings(self, task: str, adapter: EmbeddingAdapter) -> None:
+        self.require(task, adapter)
+        if not adapter.capabilities.embeddings:
+            raise ValueError(f"adapter does not provide embeddings for {task}")
 
 
 class EgressPolicyEnforcer:
@@ -353,6 +440,52 @@ class ModelRouter:
         try:
             result = adapter.generate_structured(task, bundle, output_schema, policy)
             self.schema.validate(result.value, output_schema)
+        except Exception as error:
+            self.auditor.record(
+                run_id=run_id,
+                task=task,
+                bundle=bundle,
+                adapter=adapter,
+                input_tokens=input_tokens,
+                estimated_cost=estimated_cost,
+                status="failed",
+                error=str(error),
+            )
+            raise
+        self.auditor.record(
+            run_id=run_id,
+            task=task,
+            bundle=bundle,
+            adapter=adapter,
+            input_tokens=input_tokens,
+            estimated_cost=estimated_cost,
+            status="completed",
+            latency_ms=result.latency_ms,
+        )
+        return result
+
+    def embed(
+        self,
+        *,
+        corpus_id: str,
+        run_id: str,
+        task: str,
+        adapter: EmbeddingAdapter,
+        items: list[EvidenceItem],
+        policy: ModelPolicy,
+        reason: str,
+    ) -> EmbeddingResult:
+        corpus = self.session.get(Corpus, corpus_id)
+        if corpus is None:
+            raise LookupError("corpus not found")
+        self.registry.require_embeddings(task, adapter)
+        bundle, _audit = self.egress.enforce(corpus, adapter, items, policy, reason, False)
+        input_tokens, estimated_cost = self.budget.enforce(bundle, adapter, policy)
+        try:
+            result = adapter.embed(bundle, policy)
+            dimensions = {len(vector) for vector in result.vectors}
+            if not dimensions or len(dimensions) != 1 or next(iter(dimensions)) == 0:
+                raise ValueError("embedding vectors must have one non-zero dimension")
         except Exception as error:
             self.auditor.record(
                 run_id=run_id,

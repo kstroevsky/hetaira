@@ -1,14 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DatabaseZap } from 'lucide-react'
-import { useReducer, useState } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 
 import {
   createReferencePilot,
+  createConversationGraphReference,
   createManualAnnotation,
   fetchAnnotationSets,
   fetchAnnotationSetStatistics,
   fetchAnnotationUnitContext,
   fetchAnnotationUnits,
+  fetchConversationMessages,
   freezeAnnotationSet,
   reviewManualAnnotation,
   submitTaskJudgment,
@@ -83,6 +85,16 @@ function annotationValue(
     target_type: 'message',
     target_id: targetMessageId,
   }
+  if (kind === 'reply_target') return {
+    relation_type: 'RESPONDS_TO',
+    source_message_id: sourceMessageId,
+    target_message_id: targetMessageId,
+  }
+  if (kind === 'discourse_relation') return {
+    relation_type: (label || 'ANSWERS').toUpperCase(),
+    source_message_id: sourceMessageId,
+    target_message_id: targetMessageId,
+  }
   return { label: (label || 'ASSERT').toUpperCase() }
 }
 
@@ -100,6 +112,8 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
   const [judgmentStatus, setJudgmentStatus] = useState<'PRESENT' | 'ABSENT' | 'ABSTAIN'>(
     'PRESENT',
   )
+  const [targetQuery, setTargetQuery] = useState('')
+  const [targetMessageId, setTargetMessageId] = useState('')
   const [drafts, dispatchDraft] = useReducer(reduceDrafts, { items: [], error: '', nextId: 1 })
 
   const setsQuery = useQuery({
@@ -120,13 +134,39 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
   })
   const selectedUnit =
     unitsQuery.data?.find((unit) => unit.id === selectedUnitId) ?? unitsQuery.data?.[0]
-  const usesTaskJudgments =
-    activeSet?.sampling_spec.judgment_protocol === 'blind_ab_final_v1'
+  const protocol = activeSet?.sampling_spec.judgment_protocol
+  const singleFinal = protocol === 'single_final_reference_v1'
+  const usesTaskJudgments = protocol === 'blind_ab_final_v1' || singleFinal
+  const effectiveSlot = singleFinal ? 'FINAL' : slot
   const contextQuery = useQuery({
-    queryKey: ['annotation-unit-context', selectedUnit?.id, slot],
-    queryFn: () => fetchAnnotationUnitContext(selectedUnit!.id, slot),
+    queryKey: ['annotation-unit-context', selectedUnit?.id, effectiveSlot],
+    queryFn: () => fetchAnnotationUnitContext(selectedUnit!.id, effectiveSlot),
     enabled: Boolean(selectedUnit && usesTaskJudgments),
   })
+  const conversationMessagesQuery = useQuery({
+    queryKey: [
+      'conversation-reference-messages',
+      corpusId,
+      contextQuery.data?.anchor_conversation_id,
+      contextQuery.data?.anchor_message_id,
+      targetQuery,
+    ],
+    queryFn: () => fetchConversationMessages(
+      corpusId,
+      contextQuery.data!.anchor_conversation_id,
+      targetQuery,
+      contextQuery.data!.anchor_message_id,
+    ),
+    enabled: Boolean(singleFinal && contextQuery.data?.anchor_conversation_id),
+  })
+  useEffect(() => {
+    if (singleFinal) {
+      setSlot('FINAL')
+      setKind('reply_target')
+      setLabel('RESPONDS_TO')
+    }
+    setTargetMessageId('')
+  }, [activeSetId, singleFinal])
 
   const buildCurrentAnnotation = (): Omit<JudgmentAnnotationDraft, 'draft_id'> => {
     if (!selectedUnit) throw new Error('Выберите единицу разметки')
@@ -135,7 +175,11 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
     const replyTarget = contextQuery.data?.messages.find(
       (message) => message.context_role === 'reply_target',
     )
-    if (['grounding', 'argumentation'].includes(kind) && !replyTarget) {
+    const resolvedTargetMessageId = targetMessageId || replyTarget?.message_id
+    if (
+      ['grounding', 'argumentation', 'reply_target', 'discourse_relation'].includes(kind)
+      && !resolvedTargetMessageId
+    ) {
       throw new Error(
         'Для этой relation-задачи нужна явная reply-цель; выберите ABSTAIN, если цель не разрешена.',
       )
@@ -151,7 +195,7 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
         contextQuery.data?.anchor_revision_id,
         start,
         safeEnd,
-        replyTarget?.message_id,
+        resolvedTargetMessageId,
       ),
       spans: [{ start_codepoint: start, end_codepoint: safeEnd }],
     }
@@ -172,6 +216,13 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
       await refresh()
     },
   })
+  const createGraphSet = useMutation({
+    mutationFn: () => createConversationGraphReference(corpusId),
+    onSuccess: async (created) => {
+      setSelectedSetId(created.id)
+      await refresh()
+    },
+  })
   const annotate = useMutation({
     mutationFn: async () => {
       if (!selectedUnit) throw new Error('Выберите единицу разметки')
@@ -186,9 +237,9 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
                 }))
               : [buildCurrentAnnotation()])
           : []
-        return submitTaskJudgment(selectedUnit.id, kind, slot, {
+        return submitTaskJudgment(selectedUnit.id, kind, effectiveSlot, {
           status: judgmentStatus,
-          annotator: slot === 'FINAL' ? reviewer : annotator,
+          annotator: effectiveSlot === 'FINAL' ? reviewer : annotator,
           annotations,
         })
       }
@@ -233,18 +284,58 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
         <button type="button" onClick={() => createSet.mutate()} disabled={createSet.isPending}>
           {createSet.isPending ? 'Создаём…' : 'Создать reference pilot'}
         </button>
+        <button
+          type="button"
+          onClick={() => createGraphSet.mutate()}
+          disabled={createGraphSet.isPending}
+        >
+          {createGraphSet.isPending ? 'Создаём…' : 'Создать reference для графа'}
+        </button>
         {createSet.error ? <strong className="annotation-error">{String(createSet.error)}</strong> : null}
       </main>
     )
   }
 
   return (
-    <AnnotationDesk
+    <div className="annotation-workbench-shell">
+      <div className="annotation-set-actions">
+        <button type="button" onClick={() => createGraphSet.mutate()}>
+          Создать reference для графа
+        </button>
+      </div>
+      {singleFinal ? (
+        <section className="reference-target-browser" aria-label="Поиск цели во всём разговоре">
+          <header>
+            <strong>Цель ответа во всём исходном разговоре</strong>
+            <input
+              aria-label="Поиск цели ответа"
+              value={targetQuery}
+              onChange={(event) => setTargetQuery(event.target.value)}
+              placeholder="Поиск по полному разговору"
+            />
+          </header>
+          <div>
+            {(conversationMessagesQuery.data?.items ?? []).map((message) => (
+              <button
+                className={targetMessageId === message.message_id ? 'selected' : ''}
+                key={message.message_id}
+                type="button"
+                onClick={() => setTargetMessageId(message.message_id)}
+              >
+                <small>{message.sender_name} · #{message.external_id}</small>
+                <span>{message.text || '∅'}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      <AnnotationDesk
       sets={setsQuery.data}
       activeSetId={activeSetId}
       activeSet={activeSet}
       statistics={statistics}
       usesTaskJudgments={usesTaskJudgments}
+      singleFinal={singleFinal}
       unitContext={contextQuery.data}
       units={unitsQuery.data ?? []}
       selectedUnit={selectedUnit}
@@ -254,7 +345,7 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
       end={end}
       annotator={annotator}
       reviewer={reviewer}
-      slot={slot}
+      slot={effectiveSlot}
       judgmentStatus={judgmentStatus}
       draftAnnotations={drafts.items}
       draftError={drafts.error}
@@ -303,6 +394,7 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
       onAnnotate={() => annotate.mutate()}
       onReview={(annotationId, decision) => review.mutate({ annotationId, decision })}
       onFreeze={() => freeze.mutate()}
-    />
+      />
+    </div>
   )
 }

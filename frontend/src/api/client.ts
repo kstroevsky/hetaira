@@ -4,6 +4,8 @@ import type {
   AnnotationUnit,
   AnnotationUnitContext,
   Corpus,
+  ConversationGraph,
+  ConversationGraphRun,
   Microscope,
   ObservatoryOverview,
   EpisodeMicroscope,
@@ -148,4 +150,63 @@ export function fetchEpisodeMicroscope(
 ): Promise<EpisodeMicroscope> {
   const query = new URLSearchParams({ message_id: messageId })
   return request(`/api/corpora/${corpusId}/episode-microscope?${query}`)
+}
+
+export function createConversationGraphRun(
+  corpusId: string,
+  includeEncoder = true,
+): Promise<ConversationGraphRun> {
+  return request(`/api/corpora/${corpusId}/conversation-graph-runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      include_encoder: includeEncoder,
+      execute: true,
+      candidate_limit: 40,
+      result_limit: 5,
+    }),
+  })
+}
+
+export function fetchConversationGraph(
+  corpusId: string,
+  messageId?: string,
+): Promise<ConversationGraph> {
+  const query = new URLSearchParams({ limit: '250' })
+  if (messageId) query.set('message_id', messageId)
+  return request(`/api/corpora/${corpusId}/conversation-graph?${query}`)
+}
+
+export function cancelConversationGraphRun(runId: string): Promise<ConversationGraphRun> {
+  return request(`/api/conversation-graph-runs/${runId}/cancel`, { method: 'POST' })
+}
+
+export function resumeConversationGraphRun(runId: string): Promise<ConversationGraphRun> {
+  return request(`/api/conversation-graph-runs/${runId}/resume`, { method: 'POST' })
+}
+
+export function createConversationGraphReference(corpusId: string): Promise<AnnotationSet> {
+  return request(`/api/corpora/${corpusId}/conversation-graph-reference`, { method: 'POST' })
+}
+
+export function fetchConversationMessages(
+  corpusId: string,
+  conversationId: string,
+  query = '',
+  beforeMessageId?: string,
+): Promise<{ items: Array<{
+  message_id: string
+  revision_id: string
+  external_id: string
+  sender_id: string | null
+  sender_name: string
+  sent_at: string
+  text: string
+  text_hash: string
+}> }> {
+  const params = new URLSearchParams({ q: query, limit: '500' })
+  if (beforeMessageId) params.set('before_message_id', beforeMessageId)
+  return request(
+    `/api/corpora/${corpusId}/conversations/${conversationId}/messages?${params}`,
+  )
 }

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "source_sha256": "8fb13ae85939bafea092b90c8a19242f4d383731c35f1faf10fe428532db0c60",
+  "source_status": "design_input",
+  "requirements": [
+    {"id": "NLP-01", "status": "active", "stage": "conversation_graph", "name": "conversation disentanglement and inferred reply graph"},
+    {"id": "NLP-02", "status": "active", "stage": "conversation_graph", "name": "dialogue discourse parsing"},
+    {"id": "NLP-03", "status": "deferred", "stage": "linguistic_expansion", "name": "morphosyntax, dependency parsing, and SRL"},
+    {"id": "NLP-04", "status": "active", "stage": "conversation_graph", "name": "encoder-only model tier"},
+    {"id": "NLP-05", "status": "deferred", "stage": "linguistic_expansion", "name": "NLI proposition-relation challenger"},
+    {"id": "NLP-06", "status": "deferred", "stage": "linguistic_expansion", "name": "specialized argument mining"},
+    {"id": "NLP-07", "status": "deferred", "stage": "interaction_dynamics", "name": "relational event models"},
+    {"id": "NLP-08", "status": "deferred", "stage": "interaction_dynamics", "name": "survival and event-history analysis"},
+    {"id": "NLP-09", "status": "deferred", "stage": "network_sequence", "name": "Hawkes processes"},
+    {"id": "NLP-10", "status": "deferred", "stage": "interaction_dynamics", "name": "directional linguistic coordination"},
+    {"id": "NLP-11", "status": "deferred", "stage": "semantic_state", "name": "contextual semantic change"},
+    {"id": "NLP-12", "status": "deferred", "stage": "semantic_state", "name": "dynamic topic-model challengers"},
+    {"id": "NLP-13", "status": "deferred", "stage": "semantic_state", "name": "Bayesian and algorithmic change points"},
+    {"id": "NLP-14", "status": "deferred", "stage": "semantic_state", "name": "hidden Markov and state-space models"},
+    {"id": "NLP-15", "status": "deferred", "stage": "network_sequence", "name": "dynamic communities and multilayer networks"},
+    {"id": "NLP-16", "status": "deferred", "stage": "network_sequence", "name": "network motifs"},
+    {"id": "NLP-17", "status": "deferred", "stage": "network_sequence", "name": "sequence mining"},
+    {"id": "NLP-18", "status": "deferred", "stage": "horizontal_statistics", "name": "null models and permutation testing"},
+    {"id": "NLP-19", "status": "deferred", "stage": "horizontal_statistics", "name": "hierarchical and mixed-effects models"},
+    {"id": "NLP-20", "status": "deferred", "stage": "experimental", "name": "information theory and PID"},
+    {"id": "NLP-21", "status": "deferred", "stage": "experimental", "name": "linguistic affect dynamics"},
+    {"id": "NLP-22", "status": "deferred", "stage": "linguistic_expansion", "name": "coreference and entity tracking"}
+  ]
+}

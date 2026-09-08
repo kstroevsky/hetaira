@@ -9,6 +9,7 @@ from prometheus_observatory.model_gateway import (
     EvidenceItem,
     GenericHTTPAdapter,
     LocalOpenAICompatibleAdapter,
+    LocalOpenAICompatibleEmbeddingAdapter,
     ModelPolicy,
     RemoteOpenAICompatibleAdapter,
     pseudonymize_bundle,
@@ -60,6 +61,21 @@ def test_local_adapter_accepts_only_literal_http_loopback(url: str) -> None:
 def test_local_adapter_accepts_ipv4_and_ipv6_loopback() -> None:
     assert LocalOpenAICompatibleAdapter(base_url="http://127.0.0.1:8080/v1", model="test").is_local
     assert LocalOpenAICompatibleAdapter(base_url="http://[::1]:8080/v1", model="test").is_local
+
+
+def test_embedding_adapter_uses_the_same_literal_loopback_boundary() -> None:
+    adapter = LocalOpenAICompatibleEmbeddingAdapter(
+        base_url="http://127.0.0.1:8080/v1",
+        model="intfloat/multilingual-e5-small",
+        model_revision="pinned-revision",
+    )
+    assert adapter.is_local
+    assert adapter.capabilities.embeddings
+    with pytest.raises(ValueError, match="literal loopback"):
+        LocalOpenAICompatibleEmbeddingAdapter(
+            base_url="https://127.0.0.1:8080/v1",
+            model="intfloat/multilingual-e5-small",
+        )
 
 
 def test_pseudonymization_builds_complete_map_before_redacting() -> None:

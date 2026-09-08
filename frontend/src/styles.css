@@ -916,6 +916,17 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   padding: 9px 14px;
   cursor: pointer;
 }
+.annotation-workbench-shell { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.annotation-set-actions { display: flex; justify-content: flex-end; padding: 5px 14px; border-bottom: 1px solid var(--slate-200); background: #fff; }
+.annotation-set-actions button { border: 1px solid var(--slate-300); background: #fff; padding: 6px 10px; cursor: pointer; }
+.reference-target-browser { display: grid; grid-template-columns: 270px minmax(0, 1fr); max-height: 142px; border-bottom: 1px solid var(--slate-200); background: #fff; }
+.reference-target-browser header { display: grid; align-content: center; gap: 7px; padding: 10px 14px; border-right: 1px solid var(--slate-200); }
+.reference-target-browser input { min-width: 0; border: 1px solid var(--slate-300); padding: 7px; }
+.reference-target-browser > div { display: flex; gap: 7px; overflow-x: auto; padding: 8px; }
+.reference-target-browser > div button { display: grid; flex: 0 0 220px; gap: 5px; overflow: hidden; border: 1px solid var(--slate-200); background: #fafbfc; padding: 8px; text-align: left; cursor: pointer; }
+.reference-target-browser > div button.selected { border-color: var(--violet); background: #faf8ff; }
+.reference-target-browser small { color: var(--slate-500); font-size: 8px; }
+.reference-target-browser span { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .annotation-workbench { min-height: 0; display: grid; grid-template-rows: 62px auto minmax(0, 1fr); }
 .annotation-toolbar {
   display: flex;
@@ -1028,6 +1039,46 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .freeze-note { display: flex; gap: 7px; align-items: center; padding: 12px; border-top: 1px solid var(--slate-200); color: var(--slate-700); font-size: 11px; }
 .freeze-note svg { width: 16px; }
 
+.conversation-graph, .conversation-graph-empty { overflow: auto; min-height: 0; background: #f7f8fb; }
+.conversation-graph-empty { display: grid; place-content: center; justify-items: center; gap: 12px; padding: 40px; text-align: center; }
+.conversation-graph-empty > svg { width: 44px; height: 44px; color: var(--violet); }
+.conversation-graph-empty p { max-width: 620px; color: var(--slate-500); line-height: 1.6; }
+.conversation-graph-empty button, .graph-run-card button, .graph-controls button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--slate-300); background: #fff; padding: 8px 12px; cursor: pointer; }
+.conversation-graph-empty button > svg, .graph-run-card button > svg { width: 15px; }
+.conversation-graph-header { display: flex; justify-content: space-between; gap: 24px; padding: 24px 28px; border-bottom: 1px solid var(--slate-200); background: #fff; }
+.conversation-graph-header h1 { margin: 5px 0; font-size: 24px; }
+.conversation-graph-header p { max-width: 720px; margin: 0; color: var(--slate-500); font-size: 12px; line-height: 1.5; }
+.conversation-graph-header .eyebrow { color: var(--violet); font: 9px ui-monospace, monospace; letter-spacing: .08em; }
+.graph-run-card { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 7px 12px; min-width: 240px; }
+.graph-run-card > strong { text-transform: uppercase; color: var(--violet); }
+.graph-run-card > span { font: 12px ui-monospace, monospace; }
+.graph-controls { display: flex; align-items: end; gap: 12px; padding: 12px 28px; border-bottom: 1px solid var(--slate-200); background: #fff; }
+.graph-controls label { display: grid; gap: 4px; color: var(--slate-500); font-size: 10px; }
+.graph-controls input { border: 1px solid var(--slate-300); padding: 7px; }
+.graph-controls > span { margin-left: auto; color: var(--slate-500); font: 10px ui-monospace, monospace; }
+.graph-section { margin: 16px 28px; border: 1px solid var(--slate-200); background: #fff; }
+.graph-section > header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--slate-200); }
+.graph-section > header h2 { margin: 0; font-size: 15px; }
+.graph-section > header span { color: var(--slate-500); font: 9px ui-monospace, monospace; }
+.graph-edge { display: grid; grid-template-columns: minmax(220px, 1fr) 150px minmax(220px, 1fr) 120px; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid var(--slate-200); }
+.graph-edge.source-edge { grid-template-columns: minmax(220px, 1fr) 150px minmax(220px, 1fr); }
+.graph-edge:last-child { border-bottom: 0; }
+.graph-message { display: grid; gap: 5px; min-width: 0; border: 1px solid var(--slate-200); background: #fafbfc; padding: 10px; text-align: left; cursor: pointer; }
+.graph-message small, .graph-message code { overflow: hidden; color: var(--slate-500); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.graph-message span { overflow: hidden; font-size: 11px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.graph-message.missing { color: var(--red); }
+.graph-edge-label { display: grid; justify-items: center; gap: 3px; color: var(--violet); }
+.graph-edge-label small { max-width: 140px; overflow: hidden; color: var(--slate-500); font: 8px ui-monospace, monospace; text-overflow: ellipsis; }
+.graph-edge-label.discourse strong { font-size: 11px; }
+.graph-review-actions { display: grid; grid-template-columns: repeat(3, 28px); gap: 5px; justify-content: end; }
+.graph-review-actions .graph-review { grid-column: 1 / -1; text-align: right; color: var(--slate-500); font-size: 9px; }
+.graph-review-actions button { width: 28px; height: 26px; border: 1px solid var(--slate-300); background: #fff; cursor: pointer; }
+.graph-review-actions svg { width: 13px; }
+.graph-review.confirmed { color: #12664d; }
+.graph-review.disputed { color: #8a5900; }
+.graph-review.rejected { color: var(--red); }
+.graph-empty-row { padding: 16px; color: var(--slate-500); }
+
 @media (max-width: 1250px) {
   :root { --sidebar-width: 76px; }
   .brand span, .nav-item span, .sidebar-bottom span { display: none; }
@@ -1051,4 +1102,6 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   .episode-summary { grid-template-columns: repeat(3, 1fr); }
   .finding-feed, .role-list { max-height: 280px; }
   .import-button { font-size: 0; }
+  .graph-edge { grid-template-columns: minmax(180px, 1fr) 110px minmax(180px, 1fr); }
+  .graph-review-actions { grid-column: 1 / -1; justify-content: end; }
 }

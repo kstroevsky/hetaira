@@ -547,12 +547,93 @@ class EpistemicObservation(Base, Timestamped):
 class ResponseRelation(Base, Timestamped):
     __tablename__ = "response_relations"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("corpus_snapshots.id", ondelete="CASCADE"), index=True
+    )
+    run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("analysis_runs.id", ondelete="CASCADE"), index=True
+    )
     source_message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
     target_message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
+    source_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("message_revisions.id"), index=True
+    )
+    target_revision_id: Mapped[str | None] = mapped_column(
+        ForeignKey("message_revisions.id"), index=True
+    )
     relation_type: Mapped[str] = mapped_column(String(40), default="RESPONDS_TO")
     annotation_id: Mapped[str | None] = mapped_column(ForeignKey("annotations.id"))
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
     explicit: Mapped[bool] = mapped_column(Boolean, default=False)
+    scoring_method: Mapped[str] = mapped_column(String(80), default="legacy")
+    rank: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(24), default="provisional")
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id",
+            "source_message_id",
+            "target_message_id",
+            "scoring_method",
+            name="uq_response_candidate_run_source_target_method",
+        ),
+    )
+
+
+class DiscourseRelation(Base, Timestamped):
+    __tablename__ = "discourse_relations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("corpus_snapshots.id", ondelete="CASCADE"), index=True
+    )
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("analysis_runs.id", ondelete="CASCADE"), index=True
+    )
+    source_message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
+    target_message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
+    source_revision_id: Mapped[str] = mapped_column(ForeignKey("message_revisions.id"), index=True)
+    target_revision_id: Mapped[str] = mapped_column(ForeignKey("message_revisions.id"), index=True)
+    relation_type: Mapped[str] = mapped_column(String(40), index=True)
+    annotation_id: Mapped[str] = mapped_column(ForeignKey("annotations.id"), index=True)
+    scoring_method: Mapped[str] = mapped_column(String(80))
+    raw_score: Mapped[float | None] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(24), default="provisional")
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id",
+            "source_message_id",
+            "target_message_id",
+            "relation_type",
+            "scoring_method",
+            name="uq_discourse_relation_run_endpoints_type_method",
+        ),
+    )
+
+
+class MessageFeature(Base, Timestamped):
+    __tablename__ = "message_features"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("corpus_snapshots.id", ondelete="CASCADE"), index=True
+    )
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("analysis_runs.id", ondelete="CASCADE"), index=True
+    )
+    message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
+    revision_id: Mapped[str] = mapped_column(ForeignKey("message_revisions.id"), index=True)
+    feature_type: Mapped[str] = mapped_column(String(80), index=True)
+    producer_hash: Mapped[str] = mapped_column(String(64), index=True)
+    dimensions: Mapped[int] = mapped_column(Integer)
+    values: Mapped[list[float]] = mapped_column(JSON)
+    truncated: Mapped[bool] = mapped_column(Boolean, default=False)
+    __table_args__ = (
+        UniqueConstraint(
+            "snapshot_id",
+            "revision_id",
+            "feature_type",
+            "producer_hash",
+            name="uq_message_feature_snapshot_revision_producer",
+        ),
+    )
 
 
 class ModelInvocation(Base, Timestamped):

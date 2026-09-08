@@ -32,6 +32,18 @@ Phase 2 completes deletion lineage, resumable task operations, artifact retentio
 - Forecasting uses forward-time validation only.
 - Pivotalness cannot ship before the associated forecaster is calibrated and prospectively validated.
 
+## Conversation-graph reference gate
+
+- `conversation-graph-reference-v1` is a separate, corpus-specific two-task set for
+  `reply_target` and `discourse_relation`; it does not alter the six-task Foundation pilot.
+- Its one-human `FINAL` judgments are reference data, not gold. The annotator selects targets before
+  inspecting model rankings and may search all earlier messages in the same source conversation.
+- Candidate evaluation reports target recall, mean reciprocal rank, coverage, abstention, and
+  out-of-window misses. Discourse evaluation matches source, target, and label endpoints and reports
+  precision, recall, and F1 overall and per label.
+- Lexical and encoder cosine values are uncalibrated ranking scores. ECE and Brier remain unavailable
+  until a probabilistic classifier is trained and evaluated on a frozen, independent reference set.
+
 ## Gold-set operational contract
 
 The reference pilot stores the exact 30% double-annotation cohort on each unit as `double_annotation_required`. Membership is a deterministic hash of the frozen snapshot object identity and the set seed. Complete episode groups are assigned to exactly one split; the validation cockpit reports authoritative full-set counts rather than the paginated annotation queue.

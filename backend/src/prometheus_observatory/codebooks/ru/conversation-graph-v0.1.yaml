@@ -1,0 +1,30 @@
+codebook_key: conversation-graph-ru
+version: 0.1.0
+language: ru
+validated: false
+status: provisional_reference
+tasks:
+  reply_target:
+    definition: Which earlier message, if any, this message semantically responds to.
+    endpoint: message
+    judgments: [PRESENT, ABSENT, ABSTAIN]
+    requirements:
+      - Select the target before viewing machine candidates.
+      - Search the complete source conversation when local context is insufficient.
+      - Multiple targets are allowed and each target keeps its source revision.
+  discourse_relation:
+    definition: Observable relation from the anchor message to an earlier target message.
+    endpoint: message
+    judgments: [PRESENT, ABSENT, ABSTAIN]
+    labels:
+      ANSWERS: Supplies information requested by the target.
+      ELABORATES: Adds detail without replacing the target proposition.
+      CONTRASTS: Presents a meaningful contrast with the target.
+      ACKNOWLEDGES: Signals receipt or understanding of the target.
+      CORRECTS: Replaces a target detail as mistaken or inaccurate.
+      CLARIFIES: Resolves ambiguity or restates intended meaning.
+      ACCEPTS: Explicitly accepts a proposal or position in the target.
+      REJECTS: Explicitly rejects a proposal or position in the target.
+    exclusions:
+      - Topic similarity alone does not establish a discourse relation.
+      - A relation label does not establish truth, causality, influence, or internal state.

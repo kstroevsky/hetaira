@@ -70,6 +70,84 @@ export type Run = {
   error: string | null
 }
 
+export type ConversationGraphTask = {
+  id: string
+  task_key: string
+  status: string
+  progress: number
+  checkpoint: Record<string, unknown>
+  error: string | null
+}
+
+export type ConversationGraphRun = Run & {
+  snapshot_id: string
+  tasks: ConversationGraphTask[]
+}
+
+export type ConversationGraphMessage = {
+  id: string
+  conversation_id: string
+  external_id: string
+  revision_id: string
+  sender_id: string | null
+  sender_name: string
+  sent_at: string
+  text: string
+  text_hash: string
+}
+
+export type AnnotationReview = {
+  id: string
+  decision: 'confirmed' | 'disputed' | 'rejected'
+  reviewer: string
+  rationale?: string | null
+}
+
+export type ResponseCandidate = {
+  id: string
+  annotation_id: string
+  source_message_id: string
+  target_message_id: string
+  source_revision_id: string
+  target_revision_id: string
+  method: string
+  rank: number
+  raw_score: number
+  score_semantics: 'uncalibrated_similarity'
+  status: string
+  review: AnnotationReview | null
+}
+
+export type DiscourseRelation = {
+  id: string
+  annotation_id: string
+  source_message_id: string
+  target_message_id: string
+  source_revision_id: string
+  target_revision_id: string
+  relation_type: string
+  method: string
+  raw_score: number | null
+  status: string
+  review: AnnotationReview | null
+}
+
+export type ConversationGraph = {
+  run: ConversationGraphRun
+  messages: ConversationGraphMessage[]
+  explicit_replies: Array<{
+    source_message_id: string
+    target_message_id: string
+    relation_type: 'REPLIES_TO'
+    source_native: true
+    confidence: 1
+  }>
+  response_candidates: ResponseCandidate[]
+  discourse_relations: DiscourseRelation[]
+  page: { offset: number; limit: number }
+  guardrail: string
+}
+
 export type Workspace = {
   corpus: Corpus
   messages: MessageItem[]
@@ -196,6 +274,7 @@ export type AnnotationUnitContext = {
   slot: 'A' | 'B' | 'FINAL'
   blind: boolean
   anchor_message_id: string
+  anchor_conversation_id: string
   anchor_revision_id: string
   episode_id: string | null
   episode_size: number
