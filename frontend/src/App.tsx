@@ -14,6 +14,7 @@ import { ReasoningGraphWorkbench } from './components/ReasoningGraphWorkbench'
 import { SemanticStateWorkbench } from './components/SemanticStateWorkbench'
 import { NetworkSequenceWorkbench } from './components/NetworkSequenceWorkbench'
 import { StatisticalSynthesisWorkbench } from './components/StatisticalSynthesisWorkbench'
+import { ExperimentalDynamicsWorkbench } from './components/ExperimentalDynamicsWorkbench'
 import { ObservatoryOverview } from './components/ObservatoryOverview'
 import { RunStrip } from './components/RunStrip'
 import { Sidebar } from './components/Sidebar'
@@ -150,6 +151,8 @@ export default function App() {
           <NetworkSequenceWorkbench corpusId={corpus.id} />
         ) : activeNav === 'Статистика' ? (
           <StatisticalSynthesisWorkbench corpusId={corpus.id} />
+        ) : activeNav === 'Эксперименты' ? (
+          <ExperimentalDynamicsWorkbench corpusId={corpus.id} />
         ) : (
           <main className="workspace-grid">
             <MessageTimeline

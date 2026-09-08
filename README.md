@@ -65,6 +65,10 @@ The **Статистика** workspace applies constrained dyad permutations and
 reply model. It reports when sample size or outcome variation is insufficient and keeps all outputs
 associational.
 
+The **Эксперименты** workspace exposes weekly discretized semantic transfer entropy, experimental
+I-min partial-information components, and transparent multidimensional Russian affect signals. These
+remain experimental predictive associations and linguistic observations.
+
 The default zero-configuration database is SQLite. PostgreSQL 18 + pgvector is the intended canonical deployment:
 
 ```bash

@@ -11,6 +11,7 @@ import type {
   SemanticStateArtifact,
   NetworkSequenceArtifact,
   StatisticalSynthesisArtifact,
+  ExperimentalDynamicsArtifact,
   Microscope,
   ObservatoryOverview,
   EpisodeMicroscope,
@@ -265,4 +266,12 @@ export function fetchStatisticalSynthesis(corpusId: string): Promise<Statistical
 
 export function buildStatisticalSynthesis(corpusId: string): Promise<StatisticalSynthesisArtifact> {
   return request(`/api/corpora/${corpusId}/statistical-synthesis`, { method: 'POST' })
+}
+
+export function fetchExperimentalDynamics(corpusId: string): Promise<ExperimentalDynamicsArtifact> {
+  return request(`/api/corpora/${corpusId}/experimental-dynamics`)
+}
+
+export function buildExperimentalDynamics(corpusId: string): Promise<ExperimentalDynamicsArtifact> {
+  return request(`/api/corpora/${corpusId}/experimental-dynamics`, { method: 'POST' })
 }

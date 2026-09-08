@@ -259,6 +259,32 @@ export type StatisticalSynthesisArtifact = {
   guardrail: string
 }
 
+export type ExperimentalDynamicsArtifact = {
+  artifact_id: string
+  content_hash: string
+  semantic_information_dynamics: {
+    status: string
+    reason?: string | null
+    representation?: string
+    bias_warning?: string
+    transfer_entropy?: Array<{
+      source_id: string
+      target_id: string
+      transfer_entropy_bits: number
+      one_sided_p: number
+    }>
+    partial_information?: Array<{ target_id: string; synergy_bits: number }>
+  }
+  linguistic_affect_dynamics: {
+    status: string
+    messages: number
+    messages_with_nonzero_signal: number
+    interpretation: string
+    monthly_trajectory: Array<Record<string, number | string>>
+  }
+  guardrail: string
+}
+
 export type Workspace = {
   corpus: Corpus
   messages: MessageItem[]

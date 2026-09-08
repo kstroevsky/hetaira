@@ -1194,6 +1194,20 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .statistics-grid article > small, .statistics-grid article > p { display: block; padding: 8px 12px; color: var(--slate-500); }
 .statistics-grid article > div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--slate-200); }
 .statistics-grid article > div span { color: var(--slate-500); font-size: 9px; }
+.experimental-workbench, .experimental-empty { min-height: 0; overflow: auto; background: #f7f8fb; }
+.experimental-empty { display: grid; place-content: center; justify-items: center; gap: 12px; }
+.experimental-empty > svg { width: 44px; color: var(--violet); }
+.experimental-empty button { display: inline-flex; gap: 7px; border: 0; background: var(--navy-900); color: #fff; padding: 9px 14px; }
+.experimental-workbench > header { padding: 22px 26px; border-bottom: 1px solid var(--slate-200); background: #fff; }
+.experimental-workbench > header span { color: var(--red); font: 9px ui-monospace, monospace; }
+.experimental-workbench h1 { margin: 5px 0; }
+.experimental-workbench > header p { margin: 0; color: var(--slate-500); font-size: 11px; }
+.experimental-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 18px 26px; }
+.experimental-grid article { border: 1px solid var(--slate-200); background: #fff; }
+.experimental-grid h2 { margin: 0; padding: 11px 13px; border-bottom: 1px solid var(--slate-200); font-size: 13px; }
+.experimental-grid article > small, .experimental-grid article > p { display: block; padding: 8px 12px; color: var(--slate-500); }
+.experimental-grid article > div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--slate-200); }
+.experimental-grid article > div span { color: var(--slate-500); font-size: 9px; }
 
 @media (max-width: 1250px) {
   :root { --sidebar-width: 76px; }

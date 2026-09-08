@@ -92,6 +92,15 @@ with fixed message-length/question/time controls and participant/conversation in
 estimation below 50 messages, five events, five non-events, or three participants; posterior or
 full-Hessian intervals remain explicitly unavailable in this baseline.
 
+NLP-20 and NLP-21 now have an explicitly experimental artifact. Messages are mapped to weekly
+dominant TF-IDF/K-means semantic states; ordered participant pairs use discrete plug-in transfer
+entropy with 100 seeded circular source shifts as a null. Three-participant combinations expose an
+experimental I-min PID decomposition into redundant, unique, and synergistic bits. The artifact
+warns about finite-sample and discretization bias and labels results predictive associations. A
+transparent Russian lexicon records message-level valence, arousal, dominance, anger, fear, sadness,
+joy, and frustration rates with exact source evidence. These are linguistic affect signals and never
+claims about what a participant felt.
+
 NLP-01 explicitly retains probabilistic pair/cross-encoder classifiers and global graph optimization
 as later challengers after reference relations are ready. NLP-02 retains discourse-unit segmentation
 and richer discourse parsing. The method inventories in the source proposal remain candidates to

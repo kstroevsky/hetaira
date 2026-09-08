@@ -12,6 +12,7 @@ from .conversation_graph import ConversationGraphService
 from .database import get_session
 from .episode_microscope import EpisodeMicroscopeService
 from .evaluation import evaluate_frozen_set
+from .experimental_dynamics import ExperimentalDynamicsService
 from .identity import ParticipantIdentityService
 from .importers import ImportService
 from .interaction_dynamics import InteractionDynamicsService
@@ -409,6 +410,29 @@ def get_statistical_synthesis(corpus_id: str, session: Session = Depends(get_ses
     artifact = StatisticalSynthesisService(session).latest(corpus_id)
     if artifact is None:
         raise HTTPException(404, "statistical synthesis has not been built")
+    return {"artifact_id": artifact.id, "content_hash": artifact.content_hash, **artifact.payload}
+
+
+@router.post("/corpora/{corpus_id}/experimental-dynamics", status_code=201)
+def build_experimental_dynamics(corpus_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        artifact = ExperimentalDynamicsService(session).build(corpus_id)
+        return {
+            "artifact_id": artifact.id,
+            "content_hash": artifact.content_hash,
+            **artifact.payload,
+        }
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/experimental-dynamics")
+def get_experimental_dynamics(corpus_id: str, session: Session = Depends(get_session)) -> dict:
+    if session.get(Corpus, corpus_id) is None:
+        raise HTTPException(404, "corpus not found")
+    artifact = ExperimentalDynamicsService(session).latest(corpus_id)
+    if artifact is None:
+        raise HTTPException(404, "experimental information and affect dynamics have not been built")
     return {"artifact_id": artifact.id, "content_hash": artifact.content_hash, **artifact.payload}
 
 
