@@ -1,19 +1,20 @@
 {
   "schema_version": 1,
-  "phase": "IMPLEMENTED_INTERACTION_DYNAMICS_SLICE",
+  "phase": "IMPLEMENTED_SEMANTIC_STATE_SLICE",
   "source_sha256": "8fb13ae85939bafea092b90c8a19242f4d383731c35f1faf10fe428532db0c60",
-  "roadmap_sha256": "8d67680d870d3b5299dc67b3b7d5bd2d87b05531a1d45d1e184cc87ef4719250",
-  "ledger_sha256": "578de086a77becc0edbacb1e155f4a1d221ac5cdbeea31164704e533d8b95aef",
+  "roadmap_sha256": "a4c953a70e4578fdd981ace79c83d5b36f42459a49eb3f063a4a1b52fd7edd2b",
+  "ledger_sha256": "38be97c3d48a0059d96cb1bdedc491cd5a4df031c4883dbc31abbfe4d1919a66",
   "source_area_coverage": "22/22",
   "requirements": {
-    "active": 10,
-    "deferred": 12,
+    "active": 14,
+    "deferred": 8,
     "superseded": 0
   },
   "first_phase_ids": ["NLP-01", "NLP-02", "NLP-04"],
   "linguistic_expansion_ids": ["NLP-03", "NLP-22"],
   "reasoning_graph_ids": ["NLP-05", "NLP-06"],
   "interaction_dynamics_ids": ["NLP-07", "NLP-08", "NLP-10"],
+  "semantic_state_ids": ["NLP-11", "NLP-12", "NLP-13", "NLP-14"],
   "independent_plan_review": {
     "status": "PASS_AFTER_REPAIR",
     "repairs": [

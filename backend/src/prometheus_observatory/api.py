@@ -48,6 +48,7 @@ from .schemas import (
     TaskJudgmentSubmit,
     WorkspaceResponse,
 )
+from .semantic_state import SemanticStateService
 from .workspace import WorkspaceService
 
 router = APIRouter(prefix="/api")
@@ -338,6 +339,29 @@ def get_interaction_dynamics(
         return InteractionDynamicsService(session).result(corpus_id, run_id=run_id)
     except LookupError as error:
         raise HTTPException(404, str(error)) from error
+
+
+@router.post("/corpora/{corpus_id}/semantic-state", status_code=201)
+def build_semantic_state(corpus_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        artifact = SemanticStateService(session).build(corpus_id)
+        return {
+            "artifact_id": artifact.id,
+            "content_hash": artifact.content_hash,
+            **artifact.payload,
+        }
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/semantic-state")
+def get_semantic_state(corpus_id: str, session: Session = Depends(get_session)) -> dict:
+    if session.get(Corpus, corpus_id) is None:
+        raise HTTPException(404, "corpus not found")
+    artifact = SemanticStateService(session).latest(corpus_id)
+    if artifact is None:
+        raise HTTPException(404, "semantic state has not been built")
+    return {"artifact_id": artifact.id, "content_hash": artifact.content_hash, **artifact.payload}
 
 
 @router.get("/corpora/{corpus_id}/observatory")

@@ -67,6 +67,13 @@ with repetition, reciprocity, receiver popularity, and 24-hour dyad recency. It 
 below ten informative risk sets and describes exponentiated coefficients as relative choice odds,
 not causal effects or unconditional event rates.
 
+NLP-11 through NLP-14 now have a multi-method semantic/state artifact. Semantic change prefers
+pinned cached contextual embeddings and names its TF-IDF context fallback when embeddings are not
+available. NMF and LDA publish separate topic assignments and adjusted Rand agreement. CUSUM and
+binary segmentation emit independent candidates over activity and topic prevalence. A two-state
+diagonal-Gaussian HMM baseline models monthly observation vectors; its states remain `state_0` and
+`state_1` rather than receiving post-hoc psychological or conversational labels.
+
 NLP-01 explicitly retains probabilistic pair/cross-encoder classifiers and global graph optimization
 as later challengers after reference relations are ready. NLP-02 retains discourse-unit segmentation
 and richer discourse parsing. The method inventories in the source proposal remain candidates to

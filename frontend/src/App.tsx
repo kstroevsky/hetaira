@@ -11,6 +11,7 @@ import { ImportDialog } from './components/ImportDialog'
 import { MessageTimeline } from './components/MessageTimeline'
 import { LinguisticWorkbench } from './components/LinguisticWorkbench'
 import { ReasoningGraphWorkbench } from './components/ReasoningGraphWorkbench'
+import { SemanticStateWorkbench } from './components/SemanticStateWorkbench'
 import { ObservatoryOverview } from './components/ObservatoryOverview'
 import { RunStrip } from './components/RunStrip'
 import { Sidebar } from './components/Sidebar'
@@ -141,6 +142,8 @@ export default function App() {
           />
         ) : activeNav === 'Аргументы' ? (
           <ReasoningGraphWorkbench corpusId={corpus.id} />
+        ) : activeNav === 'Состояния' ? (
+          <SemanticStateWorkbench corpusId={corpus.id} />
         ) : (
           <main className="workspace-grid">
             <MessageTimeline

@@ -184,6 +184,31 @@ export type ReasoningGraph = {
   guardrail: string
 }
 
+export type SemanticStateArtifact = {
+  artifact_id: string
+  content_hash: string
+  analysis_version: string
+  corpus_id: string
+  snapshot_id: string
+  semantic_change: {
+    status: string
+    representation?: string
+    terms: Array<{ term: string; average_pairwise_cosine_distance: number }>
+  }
+  topic_challengers: {
+    models: Record<string, { status: string; topic_count?: number; reason?: string }>
+    agreement: { adjusted_rand_index: number; interpretation: string } | null
+  }
+  change_points: { message_activity: Array<{ method: string; month: string; score: number }> }
+  conversation_states: {
+    status: string
+    states_are_unlabeled?: boolean
+    sequence?: Array<{ month: string; state: string }>
+    reason?: string
+  }
+  guardrail: string
+}
+
 export type Workspace = {
   corpus: Corpus
   messages: MessageItem[]

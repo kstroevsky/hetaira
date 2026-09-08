@@ -53,6 +53,10 @@ The interaction-dynamics API adds directional language coordination, Kaplan–Me
 survival with right censoring, and a sender-conditioned relational-event choice baseline. These
 measurements consume source-native replies and remain descriptive or associational.
 
+The **Состояния** workspace compares NMF and LDA topic representations, ranks contextual semantic
+change, shows independent CUSUM/binary-segmentation candidates, and exposes unlabeled Gaussian-HMM
+conversation states.
+
 The default zero-configuration database is SQLite. PostgreSQL 18 + pgvector is the intended canonical deployment:
 
 ```bash

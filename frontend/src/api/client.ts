@@ -8,6 +8,7 @@ import type {
   ConversationGraphRun,
   LinguisticAnalysis,
   ReasoningGraph,
+  SemanticStateArtifact,
   Microscope,
   ObservatoryOverview,
   EpisodeMicroscope,
@@ -238,4 +239,12 @@ export function createReasoningRun(corpusId: string): Promise<ConversationGraphR
 
 export function fetchReasoningGraph(corpusId: string): Promise<ReasoningGraph> {
   return request(`/api/corpora/${corpusId}/reasoning-graph`)
+}
+
+export function fetchSemanticState(corpusId: string): Promise<SemanticStateArtifact> {
+  return request(`/api/corpora/${corpusId}/semantic-state`)
+}
+
+export function buildSemanticState(corpusId: string): Promise<SemanticStateArtifact> {
+  return request(`/api/corpora/${corpusId}/semantic-state`, { method: 'POST' })
 }
