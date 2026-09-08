@@ -1,0 +1,18 @@
+codebook_key: linguistic-features-ru
+version: 0.1.0
+language: ru
+validated: false
+status: provisional_baseline
+observations:
+  linguistic_features:
+    includes: [tokens, lemmas, part_of_speech, morphology, noun_phrases, negation_scopes, modals]
+    excludes: [dependency_parse, semantic_roles]
+  entity_mention:
+    includes: [participant_name_matches, mentions_supported_by_morphological_grammemes, pronouns]
+    guardrail: A mention is evidence in text, not a resolved real-world entity.
+  coreference_candidates:
+    includes: [prior_same-surface_mentions, recency-ranked morphologically-compatible antecedents]
+    guardrail: Candidate scores are uncalibrated and no target is accepted automatically.
+optional_local_parser:
+  tasks: [dependency, ner, coreference, srl]
+  requirements: [literal_loopback_http, pinned_model_revision, exact_offsets, audited_invocation]

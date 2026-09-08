@@ -6,6 +6,7 @@ import type {
   Corpus,
   ConversationGraph,
   ConversationGraphRun,
+  LinguisticAnalysis,
   Microscope,
   ObservatoryOverview,
   EpisodeMicroscope,
@@ -209,4 +210,19 @@ export function fetchConversationMessages(
   return request(
     `/api/corpora/${corpusId}/conversations/${conversationId}/messages?${params}`,
   )
+}
+
+export function createLinguisticRun(corpusId: string): Promise<ConversationGraphRun> {
+  return request(`/api/corpora/${corpusId}/linguistic-runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ include_local_parser: true, execute: true }),
+  })
+}
+
+export function fetchMessageLinguistics(
+  corpusId: string,
+  messageId: string,
+): Promise<LinguisticAnalysis> {
+  return request(`/api/corpora/${corpusId}/messages/${messageId}/linguistics`)
 }

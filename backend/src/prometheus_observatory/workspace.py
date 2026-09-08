@@ -41,6 +41,10 @@ SECTION_TITLES = {
     "epistemic_state": "Эпистемика",
     "grounding": "Общее знание",
     "argumentation": "Аргументация",
+    "linguistic_features": "Морфосинтаксис",
+    "entity_mention": "Упоминания сущностей",
+    "coreference_candidates": "Кандидаты кореференции",
+    "linguistic_parser_output": "Локальный синтаксис и SRL",
 }
 
 

@@ -8,6 +8,7 @@ from prometheus_observatory.model_gateway import (
     EvidenceBundle,
     EvidenceItem,
     GenericHTTPAdapter,
+    LocalLinguisticAnalysisAdapter,
     LocalOpenAICompatibleAdapter,
     LocalOpenAICompatibleEmbeddingAdapter,
     ModelPolicy,
@@ -75,6 +76,26 @@ def test_embedding_adapter_uses_the_same_literal_loopback_boundary() -> None:
         LocalOpenAICompatibleEmbeddingAdapter(
             base_url="https://127.0.0.1:8080/v1",
             model="intfloat/multilingual-e5-small",
+        )
+
+
+def test_linguistic_adapter_requires_literal_loopback_and_pinned_revision() -> None:
+    assert LocalLinguisticAnalysisAdapter(
+        base_url="http://127.0.0.1:8081/v1",
+        model="russian-parser",
+        model_revision="sha256:parser",
+    ).capabilities.linguistic_analysis
+    with pytest.raises(ValueError, match="literal loopback"):
+        LocalLinguisticAnalysisAdapter(
+            base_url="https://127.0.0.1:8081/v1",
+            model="russian-parser",
+            model_revision="sha256:parser",
+        )
+    with pytest.raises(ValueError, match="pinned"):
+        LocalLinguisticAnalysisAdapter(
+            base_url="http://127.0.0.1:8081/v1",
+            model="russian-parser",
+            model_revision="unversioned",
         )
 
 

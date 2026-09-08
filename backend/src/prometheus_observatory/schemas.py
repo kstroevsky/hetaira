@@ -179,6 +179,11 @@ class ConversationGraphRunCreate(BaseModel):
     result_limit: int = Field(default=5, ge=1, le=40)
 
 
+class LinguisticRunCreate(BaseModel):
+    include_local_parser: bool = True
+    execute: bool = True
+
+
 class WorkspaceResponse(BaseModel):
     corpus: CorpusRead
     messages: list[MessageListItem]

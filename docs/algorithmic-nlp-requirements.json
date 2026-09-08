@@ -5,7 +5,7 @@
   "requirements": [
     {"id": "NLP-01", "status": "active", "stage": "conversation_graph", "name": "conversation disentanglement and inferred reply graph"},
     {"id": "NLP-02", "status": "active", "stage": "conversation_graph", "name": "dialogue discourse parsing"},
-    {"id": "NLP-03", "status": "deferred", "stage": "linguistic_expansion", "name": "morphosyntax, dependency parsing, and SRL"},
+    {"id": "NLP-03", "status": "active", "stage": "linguistic_expansion", "name": "morphosyntax, dependency parsing, and SRL"},
     {"id": "NLP-04", "status": "active", "stage": "conversation_graph", "name": "encoder-only model tier"},
     {"id": "NLP-05", "status": "deferred", "stage": "linguistic_expansion", "name": "NLI proposition-relation challenger"},
     {"id": "NLP-06", "status": "deferred", "stage": "linguistic_expansion", "name": "specialized argument mining"},
@@ -24,6 +24,6 @@
     {"id": "NLP-19", "status": "deferred", "stage": "horizontal_statistics", "name": "hierarchical and mixed-effects models"},
     {"id": "NLP-20", "status": "deferred", "stage": "experimental", "name": "information theory and PID"},
     {"id": "NLP-21", "status": "deferred", "stage": "experimental", "name": "linguistic affect dynamics"},
-    {"id": "NLP-22", "status": "deferred", "stage": "linguistic_expansion", "name": "coreference and entity tracking"}
+    {"id": "NLP-22", "status": "active", "stage": "linguistic_expansion", "name": "coreference and entity tracking"}
   ]
 }

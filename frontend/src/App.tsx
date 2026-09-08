@@ -9,6 +9,7 @@ import { ConversationGraphWorkbench } from './components/ConversationGraphWorkbe
 import { EvidenceChain } from './components/EvidenceChain'
 import { ImportDialog } from './components/ImportDialog'
 import { MessageTimeline } from './components/MessageTimeline'
+import { LinguisticWorkbench } from './components/LinguisticWorkbench'
 import { ObservatoryOverview } from './components/ObservatoryOverview'
 import { RunStrip } from './components/RunStrip'
 import { Sidebar } from './components/Sidebar'
@@ -122,6 +123,16 @@ export default function App() {
         ) : activeNav === 'Граф диалога' ? (
           <ConversationGraphWorkbench
             corpusId={corpus.id}
+            onOpenEvidence={(messageId) => {
+              setSelectedMessageId(messageId)
+              setActiveNav('Корпусы')
+            }}
+          />
+        ) : activeNav === 'Лингвистика' ? (
+          <LinguisticWorkbench
+            corpusId={corpus.id}
+            messages={messages}
+            initialMessageId={effectiveMessageId}
             onOpenEvidence={(messageId) => {
               setSelectedMessageId(messageId)
               setActiveNav('Корпусы')

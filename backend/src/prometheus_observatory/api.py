@@ -14,6 +14,7 @@ from .episode_microscope import EpisodeMicroscopeService
 from .evaluation import evaluate_frozen_set
 from .identity import ParticipantIdentityService
 from .importers import ImportService
+from .linguistic_analysis import LinguisticAnalysisService
 from .models import (
     AnalysisRun,
     AnnotationSet,
@@ -36,6 +37,7 @@ from .schemas import (
     CorpusRead,
     ImportResult,
     ImportRunRead,
+    LinguisticRunCreate,
     ManualAnnotationCreate,
     MessageListItem,
     MicroscopeResponse,
@@ -216,6 +218,71 @@ def search_conversation_messages(
             before_message_id=before_message_id,
         )
         return {"items": items}
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.post("/corpora/{corpus_id}/linguistic-runs", status_code=201)
+def create_linguistic_run(
+    corpus_id: str,
+    payload: LinguisticRunCreate,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        service = LinguisticAnalysisService(session)
+        run = service.create(
+            corpus_id,
+            include_local_parser=payload.include_local_parser,
+            execute=payload.execute,
+        )
+        return service.run_payload(run.id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@router.get("/linguistic-runs/{run_id}")
+def get_linguistic_run(run_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        return LinguisticAnalysisService(session).run_payload(run_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.post("/linguistic-runs/{run_id}/cancel")
+def cancel_linguistic_run(run_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        service = LinguisticAnalysisService(session)
+        run = service.cancel(run_id)
+        return service.run_payload(run.id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.post("/linguistic-runs/{run_id}/resume")
+def resume_linguistic_run(run_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        service = LinguisticAnalysisService(session)
+        run = service.resume(run_id)
+        return service.run_payload(run.id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/messages/{message_id}/linguistics")
+def get_message_linguistics(
+    corpus_id: str,
+    message_id: str,
+    run_id: str | None = None,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        return LinguisticAnalysisService(session).message_analysis(
+            corpus_id, message_id, run_id=run_id
+        )
     except LookupError as error:
         raise HTTPException(404, str(error)) from error
 

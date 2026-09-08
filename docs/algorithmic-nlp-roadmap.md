@@ -38,6 +38,20 @@ textual relations and do not establish truth, causation, influence, stance, or i
 | NLP-18, NLP-19 | Horizontal statistics | Null models, controls, hierarchical models, uncertainty |
 | NLP-20, NLP-21 | Experimental research | Transfer entropy/PID and multidimensional linguistic affect |
 
+## Linguistic expansion implemented slice
+
+NLP-03 and NLP-22 now have a corpus-wide provisional vertical slice. Every Russian message can
+persist exact-offset tokens, lemmas, Universal-style POS labels, OpenCorpora morphology, heuristic
+noun phrases, negation scopes, and modal markers. Entity mentions preserve their source spans and
+basis. Pronouns and repeated mentions receive bounded, recency/morphology-ranked antecedent
+alternatives; no entity or coreference target is accepted automatically.
+
+Dependency trees, model-based NER/coreference, and semantic roles use an optional typed local parser
+contract. The endpoint must use literal loopback HTTP, declare a pinned model revision, reproduce
+all source offsets, and return token-linked dependency and SRL structures. Missing or failed parser
+output leaves the deterministic layer available and is represented as unavailable rather than as a
+negative observation.
+
 NLP-01 explicitly retains probabilistic pair/cross-encoder classifiers and global graph optimization
 as later challengers after reference relations are ready. NLP-02 retains discourse-unit segmentation
 and richer discourse parsing. The method inventories in the source proposal remain candidates to
@@ -50,4 +64,3 @@ single-human and therefore provisional. Scientific promotion requires independen
 task-specific endpoint metrics, calibration for probabilistic models, frozen comparison data, and
 forward-time validation where forecasting is involved. Composite influence, power, persuasion,
 coalition, health, and causal claims remain gated by the existing scientific specification.
-

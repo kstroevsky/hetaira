@@ -15,6 +15,9 @@ The current Foundation release implements the first complete vertical slice:
 - a full React analysis microscope and an explicitly unvalidated 100-message English demo.
 - a corpus-wide, resumable provisional response/discourse graph with separate source replies,
   lexical candidates, an optional loopback-only embedding challenger, and human review.
+- a corpus-wide Russian linguistic feature layer with exact-offset morphology, interpretable
+  lexical-syntactic cues, provisional entity/coreference candidates, and an optional pinned local
+  dependency/NER/coreference/SRL parser.
 
 High-level influence, power, persuasion, coalition, forecasting, and pivotal-moment systems remain gated behind validated primitive measurements. The ontology already reserves their evidence/provenance contracts; the application does not invent direct scores for them.
 
@@ -35,6 +38,11 @@ The **Граф диалога** workspace builds message-level `RESPONDS_TO` can
 discourse-relation proposals without changing source-native `REPLIES_TO` edges. Similarity
 scores are rankings, not probabilities. Configure an optional local embedding endpoint in
 `.env`; model provisioning and downloads remain explicit operator actions.
+
+The **Лингвистика** workspace exposes the reusable linguistic layer. `pymorphy3` observations are
+available without additional models. Dependency parses, named entities, coreference chains, and
+semantic roles are marked unavailable unless a typed local parser endpoint and pinned revision are
+configured.
 
 The default zero-configuration database is SQLite. PostgreSQL 18 + pgvector is the intended canonical deployment:
 

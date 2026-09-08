@@ -1,16 +1,17 @@
 {
   "schema_version": 1,
-  "phase": "IMPLEMENTED_FIRST_PHASE",
+  "phase": "IMPLEMENTED_LINGUISTIC_EXPANSION_SLICE",
   "source_sha256": "8fb13ae85939bafea092b90c8a19242f4d383731c35f1faf10fe428532db0c60",
-  "roadmap_sha256": "f1005be68037298061b84809a3a0a99be52efbd40df25b8d4956859d01af0b39",
-  "ledger_sha256": "55e2fe403538d9b95d7432f12de0f3e5bba9c0b2ad7358e46d86e09ad7807fac",
+  "roadmap_sha256": "cbaacf2bee1fe8d453b3af6c5630560367959fa3eb4f13d4781d5c92154b7e6e",
+  "ledger_sha256": "573d6a39bd85d275eb70463e5308ce7ec2827a979da66994cd3ad866c1bef1e3",
   "source_area_coverage": "22/22",
   "requirements": {
-    "active": 3,
-    "deferred": 19,
+    "active": 5,
+    "deferred": 17,
     "superseded": 0
   },
   "first_phase_ids": ["NLP-01", "NLP-02", "NLP-04"],
+  "linguistic_expansion_ids": ["NLP-03", "NLP-22"],
   "independent_plan_review": {
     "status": "PASS_AFTER_REPAIR",
     "repairs": [

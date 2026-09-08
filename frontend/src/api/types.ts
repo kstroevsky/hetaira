@@ -148,6 +148,26 @@ export type ConversationGraph = {
   guardrail: string
 }
 
+export type LinguisticAnnotation = {
+  id: string
+  kind: string
+  value: Record<string, unknown>
+  evidence: Annotation['evidence']
+  status: string
+  raw_confidence: number | null
+  calibrated_confidence: number | null
+  alternatives: Array<{ value: Record<string, unknown> }>
+  provenance: Record<string, unknown>
+}
+
+export type LinguisticAnalysis = {
+  run: ConversationGraphRun
+  message_id: string
+  revision_id: string
+  annotations: LinguisticAnnotation[]
+  guardrail: string
+}
+
 export type Workspace = {
   corpus: Corpus
   messages: MessageItem[]

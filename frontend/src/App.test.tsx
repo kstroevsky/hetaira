@@ -239,6 +239,70 @@ describe('Prometheus workbench', () => {
     ).toBe(true))
   })
 
+  it('shows exact-offset morphology and provisional entity candidates', async () => {
+    const linguistic = {
+      run: {
+        id: 'ling-run', snapshot_id: 'snapshot-12345678', run_type: 'linguistic-analysis',
+        status: 'completed', progress: 1, configuration: {}, started_at: null,
+        completed_at: '2025-01-01T10:00:00Z', error: null,
+        tasks: [{
+          id: 'parser-task', task_key: 'local_parser', status: 'unavailable',
+          progress: 1, checkpoint: {}, error: 'not configured',
+        }],
+      },
+      message_id: 'm1', revision_id: 'r1', guardrail: 'Кандидаты не являются фактами.',
+      annotations: [
+        {
+          id: 'features', kind: 'linguistic_features', status: 'provisional',
+          raw_confidence: null, calibrated_confidence: null, evidence: [], alternatives: [],
+          provenance: {},
+          value: {
+            tokens: [{ id: 1, text: 'Давайте', lemma: 'давать', upos: 'VERB', grammemes: ['VERB'], start_codepoint: 0, end_codepoint: 7 }],
+            noun_phrases: [], negation_scopes: [], modals: [],
+            capability_status: { morphology: 'available', dependencies: 'unavailable_without_local_parser' },
+          },
+        },
+        {
+          id: 'entity', kind: 'entity_mention', status: 'provisional',
+          raw_confidence: null, calibrated_confidence: null, evidence: [], alternatives: [],
+          provenance: {},
+          value: {
+            mention_id: 'mention-1', text: 'Иван', entity_type: 'PERSON',
+            source_basis: 'participant_display_name', start_codepoint: 0, end_codepoint: 4,
+            resolution_status: 'candidate_only',
+          },
+        },
+      ],
+    }
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      const data = url.includes('/linguistics')
+        ? linguistic
+        : url.includes('/observatory')
+        ? observatory
+        : url.includes('/api/corpora')
+        ? [workspace.corpus]
+        : url.includes('/microscope')
+        ? workspace.microscope
+        : workspace
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <App />
+      </QueryClientProvider>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Лингвистика' }))
+    expect(await screen.findByLabelText('Токены и морфология')).toHaveTextContent('давать')
+    expect(screen.getAllByText('Иван').length).toBeGreaterThan(0)
+    expect(screen.getByText('unavailable_without_local_parser')).toBeVisible()
+  })
+
   it('shows full-set gold-ru-v1 validation statistics', async () => {
     const annotationSet = {
       id: 'set-v1', corpus_id: 'c1', snapshot_id: 'snapshot-12345678', name: 'archive-reference-ru-pilot-v1',
