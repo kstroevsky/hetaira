@@ -231,6 +231,34 @@ export type NetworkSequenceArtifact = {
   guardrail: string
 }
 
+export type StatisticalSynthesisArtifact = {
+  artifact_id: string
+  content_hash: string
+  null_models: {
+    status: string
+    null?: string
+    tests?: Array<{
+      source_id: string
+      target_id: string
+      observed: number
+      null_mean: number
+      null_sd: number
+      z_score: number | null
+      one_sided_p: number
+    }>
+    reason?: string
+  }
+  hierarchical_reply_model: {
+    status: string
+    reason?: string
+    sample_size?: number
+    events?: number
+    fixed_effects?: Record<string, { log_odds: number; odds_ratio: number }>
+    uncertainty?: Record<string, string>
+  }
+  guardrail: string
+}
+
 export type Workspace = {
   corpus: Corpus
   messages: MessageItem[]

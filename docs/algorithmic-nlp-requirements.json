@@ -20,8 +20,8 @@
     {"id": "NLP-15", "status": "active", "stage": "network_sequence", "name": "dynamic communities and multilayer networks"},
     {"id": "NLP-16", "status": "active", "stage": "network_sequence", "name": "network motifs"},
     {"id": "NLP-17", "status": "active", "stage": "network_sequence", "name": "sequence mining"},
-    {"id": "NLP-18", "status": "deferred", "stage": "horizontal_statistics", "name": "null models and permutation testing"},
-    {"id": "NLP-19", "status": "deferred", "stage": "horizontal_statistics", "name": "hierarchical and mixed-effects models"},
+    {"id": "NLP-18", "status": "active", "stage": "horizontal_statistics", "name": "null models and permutation testing"},
+    {"id": "NLP-19", "status": "active", "stage": "horizontal_statistics", "name": "hierarchical and mixed-effects models"},
     {"id": "NLP-20", "status": "deferred", "stage": "experimental", "name": "information theory and PID"},
     {"id": "NLP-21", "status": "deferred", "stage": "experimental", "name": "linguistic affect dynamics"},
     {"id": "NLP-22", "status": "active", "stage": "linguistic_expansion", "name": "coreference and entity tracking"}

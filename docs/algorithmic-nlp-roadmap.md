@@ -83,6 +83,15 @@ frequent patterns without attaching success labels. A fixed-decay exponential-ke
 baseline estimates participant excitation only above 20 events and reports stability diagnostics;
 these values remain associational triggering signals.
 
+NLP-18 and NLP-19 now have a horizontal statistical-synthesis artifact. The reusable null engine
+runs seeded constrained permutations with an explicit statistic, denominator, preserved properties,
+null mean/deviation, z-score, and finite-sample p-value. The first application shuffles reply
+receivers within conversation while preserving sender sequence and receiver event totals. A
+regularized hierarchical logistic MAP model estimates whether a message receives an explicit reply,
+with fixed message-length/question/time controls and participant/conversation intercepts. It refuses
+estimation below 50 messages, five events, five non-events, or three participants; posterior or
+full-Hessian intervals remain explicitly unavailable in this baseline.
+
 NLP-01 explicitly retains probabilistic pair/cross-encoder classifiers and global graph optimization
 as later challengers after reference relations are ready. NLP-02 retains discourse-unit segmentation
 and richer discourse parsing. The method inventories in the source proposal remain candidates to

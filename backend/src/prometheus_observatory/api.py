@@ -50,6 +50,7 @@ from .schemas import (
     WorkspaceResponse,
 )
 from .semantic_state import SemanticStateService
+from .statistical_synthesis import StatisticalSynthesisService
 from .workspace import WorkspaceService
 
 router = APIRouter(prefix="/api")
@@ -385,6 +386,29 @@ def get_network_sequence(corpus_id: str, session: Session = Depends(get_session)
     artifact = NetworkSequenceService(session).latest(corpus_id)
     if artifact is None:
         raise HTTPException(404, "network and sequence dynamics have not been built")
+    return {"artifact_id": artifact.id, "content_hash": artifact.content_hash, **artifact.payload}
+
+
+@router.post("/corpora/{corpus_id}/statistical-synthesis", status_code=201)
+def build_statistical_synthesis(corpus_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        artifact = StatisticalSynthesisService(session).build(corpus_id)
+        return {
+            "artifact_id": artifact.id,
+            "content_hash": artifact.content_hash,
+            **artifact.payload,
+        }
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/statistical-synthesis")
+def get_statistical_synthesis(corpus_id: str, session: Session = Depends(get_session)) -> dict:
+    if session.get(Corpus, corpus_id) is None:
+        raise HTTPException(404, "corpus not found")
+    artifact = StatisticalSynthesisService(session).latest(corpus_id)
+    if artifact is None:
+        raise HTTPException(404, "statistical synthesis has not been built")
     return {"artifact_id": artifact.id, "content_hash": artifact.content_hash, **artifact.payload}
 
 

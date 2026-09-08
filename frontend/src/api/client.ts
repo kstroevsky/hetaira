@@ -10,6 +10,7 @@ import type {
   ReasoningGraph,
   SemanticStateArtifact,
   NetworkSequenceArtifact,
+  StatisticalSynthesisArtifact,
   Microscope,
   ObservatoryOverview,
   EpisodeMicroscope,
@@ -256,4 +257,12 @@ export function fetchNetworkSequence(corpusId: string): Promise<NetworkSequenceA
 
 export function buildNetworkSequence(corpusId: string): Promise<NetworkSequenceArtifact> {
   return request(`/api/corpora/${corpusId}/network-sequence`, { method: 'POST' })
+}
+
+export function fetchStatisticalSynthesis(corpusId: string): Promise<StatisticalSynthesisArtifact> {
+  return request(`/api/corpora/${corpusId}/statistical-synthesis`)
+}
+
+export function buildStatisticalSynthesis(corpusId: string): Promise<StatisticalSynthesisArtifact> {
+  return request(`/api/corpora/${corpusId}/statistical-synthesis`, { method: 'POST' })
 }

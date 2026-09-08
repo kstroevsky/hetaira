@@ -61,6 +61,10 @@ The **Сети** workspace keeps interaction, semantic-similarity, support, and 
 shows static and monthly Leiden communities; compares motifs with a seeded degree-preserving null;
 mines dialogue-act sequences; and reports Hawkes-style excitation only when enough events exist.
 
+The **Статистика** workspace applies constrained dyad permutations and a regularized hierarchical
+reply model. It reports when sample size or outcome variation is insufficient and keeps all outputs
+associational.
+
 The default zero-configuration database is SQLite. PostgreSQL 18 + pgvector is the intended canonical deployment:
 
 ```bash

@@ -13,6 +13,7 @@ import { LinguisticWorkbench } from './components/LinguisticWorkbench'
 import { ReasoningGraphWorkbench } from './components/ReasoningGraphWorkbench'
 import { SemanticStateWorkbench } from './components/SemanticStateWorkbench'
 import { NetworkSequenceWorkbench } from './components/NetworkSequenceWorkbench'
+import { StatisticalSynthesisWorkbench } from './components/StatisticalSynthesisWorkbench'
 import { ObservatoryOverview } from './components/ObservatoryOverview'
 import { RunStrip } from './components/RunStrip'
 import { Sidebar } from './components/Sidebar'
@@ -147,6 +148,8 @@ export default function App() {
           <SemanticStateWorkbench corpusId={corpus.id} />
         ) : activeNav === 'Сети' ? (
           <NetworkSequenceWorkbench corpusId={corpus.id} />
+        ) : activeNav === 'Статистика' ? (
+          <StatisticalSynthesisWorkbench corpusId={corpus.id} />
         ) : (
           <main className="workspace-grid">
             <MessageTimeline
