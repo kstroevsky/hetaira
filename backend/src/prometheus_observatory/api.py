@@ -14,6 +14,7 @@ from .episode_microscope import EpisodeMicroscopeService
 from .evaluation import evaluate_frozen_set
 from .identity import ParticipantIdentityService
 from .importers import ImportService
+from .interaction_dynamics import InteractionDynamicsService
 from .linguistic_analysis import LinguisticAnalysisService
 from .models import (
     AnalysisRun,
@@ -313,6 +314,28 @@ def get_reasoning_graph(
 ) -> dict:
     try:
         return ReasoningGraphService(session).graph(corpus_id, run_id=run_id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.post("/corpora/{corpus_id}/interaction-dynamics", status_code=201)
+def build_interaction_dynamics(corpus_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        service = InteractionDynamicsService(session)
+        run = service.create(corpus_id)
+        return service.result(corpus_id, run_id=run.id)
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/interaction-dynamics")
+def get_interaction_dynamics(
+    corpus_id: str,
+    run_id: str | None = None,
+    session: Session = Depends(get_session),
+) -> dict:
+    try:
+        return InteractionDynamicsService(session).result(corpus_id, run_id=run_id)
     except LookupError as error:
         raise HTTPException(404, str(error)) from error
 

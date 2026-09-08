@@ -1,18 +1,19 @@
 {
   "schema_version": 1,
-  "phase": "IMPLEMENTED_REASONING_GRAPH_SLICE",
+  "phase": "IMPLEMENTED_INTERACTION_DYNAMICS_SLICE",
   "source_sha256": "8fb13ae85939bafea092b90c8a19242f4d383731c35f1faf10fe428532db0c60",
-  "roadmap_sha256": "dcecd4a677db8f5a3fdfebbf64f648b1d5b33f17da488365e5313f4d547d31c2",
-  "ledger_sha256": "9f9567c58db8643f85acab212b6797295e9ef24fd01f0882adb079dcd7605638",
+  "roadmap_sha256": "8d67680d870d3b5299dc67b3b7d5bd2d87b05531a1d45d1e184cc87ef4719250",
+  "ledger_sha256": "578de086a77becc0edbacb1e155f4a1d221ac5cdbeea31164704e533d8b95aef",
   "source_area_coverage": "22/22",
   "requirements": {
-    "active": 7,
-    "deferred": 15,
+    "active": 10,
+    "deferred": 12,
     "superseded": 0
   },
   "first_phase_ids": ["NLP-01", "NLP-02", "NLP-04"],
   "linguistic_expansion_ids": ["NLP-03", "NLP-22"],
   "reasoning_graph_ids": ["NLP-05", "NLP-06"],
+  "interaction_dynamics_ids": ["NLP-07", "NLP-08", "NLP-10"],
   "independent_plan_review": {
     "status": "PASS_AFTER_REPAIR",
     "repairs": [

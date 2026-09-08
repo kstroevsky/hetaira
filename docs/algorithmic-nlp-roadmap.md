@@ -58,6 +58,15 @@ and propose `SUPPORTS` or `ATTACKS` while retaining abstained candidates. A type
 pair classifier can contribute NLI scores as a separate channel. Every NLI result records
 `truth_status: not_determined`; it never silently becomes a stance, argument, or truth judgment.
 
+NLP-07, NLP-08, and NLP-10 now have an explicit-reply interaction-dynamics baseline. Directional
+coordination compares each reply with the immediately replied-to message relative to the responder's
+snapshot baseline and reports ordered-pair intervals. Response survival uses first explicit replies,
+right-censors at conversation end, and publishes its Kaplan–Meier risk table. The relational-event
+engine fits a regularized sender-conditioned receiver-choice likelihood over conversation risk sets
+with repetition, reciprocity, receiver popularity, and 24-hour dyad recency. It refuses estimation
+below ten informative risk sets and describes exponentiated coefficients as relative choice odds,
+not causal effects or unconditional event rates.
+
 NLP-01 explicitly retains probabilistic pair/cross-encoder classifiers and global graph optimization
 as later challengers after reference relations are ready. NLP-02 retains discourse-unit segmentation
 and richer discourse parsing. The method inventories in the source proposal remain candidates to

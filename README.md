@@ -49,6 +49,10 @@ The **Аргументы** workspace derives provisional claim/premise/evidence 
 NLI classifier contributes a separate `ENTAILMENT`/`CONTRADICTION`/`NEUTRAL` channel and never
 determines truth.
 
+The interaction-dynamics API adds directional language coordination, Kaplan–Meier response
+survival with right censoring, and a sender-conditioned relational-event choice baseline. These
+measurements consume source-native replies and remain descriptive or associational.
+
 The default zero-configuration database is SQLite. PostgreSQL 18 + pgvector is the intended canonical deployment:
 
 ```bash
