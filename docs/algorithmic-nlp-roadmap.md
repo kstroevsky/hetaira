@@ -74,6 +74,15 @@ binary segmentation emit independent candidates over activity and topic prevalen
 diagonal-Gaussian HMM baseline models monthly observation vectors; its states remain `state_0` and
 `state_1` rather than receiving post-hoc psychological or conversational labels.
 
+NLP-09 and NLP-15 through NLP-17 now have a network/sequence artifact. It separates interaction,
+semantic-similarity, support, and attack layers, while marking stance and knowledge-flow layers
+unavailable until their endpoints exist. Leiden communities are reported per layer and per month for
+interaction. Reciprocal and transitive motifs are compared with 100 seeded target permutations that
+preserve sender and receiver event counts. Dialogue acts produce episode-level transitions and
+frequent patterns without attaching success labels. A fixed-decay exponential-kernel Hawkes moment
+baseline estimates participant excitation only above 20 events and reports stability diagnostics;
+these values remain associational triggering signals.
+
 NLP-01 explicitly retains probabilistic pair/cross-encoder classifiers and global graph optimization
 as later challengers after reference relations are ready. NLP-02 retains discourse-unit segmentation
 and richer discourse parsing. The method inventories in the source proposal remain candidates to

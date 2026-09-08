@@ -9,6 +9,7 @@ import type {
   LinguisticAnalysis,
   ReasoningGraph,
   SemanticStateArtifact,
+  NetworkSequenceArtifact,
   Microscope,
   ObservatoryOverview,
   EpisodeMicroscope,
@@ -247,4 +248,12 @@ export function fetchSemanticState(corpusId: string): Promise<SemanticStateArtif
 
 export function buildSemanticState(corpusId: string): Promise<SemanticStateArtifact> {
   return request(`/api/corpora/${corpusId}/semantic-state`, { method: 'POST' })
+}
+
+export function fetchNetworkSequence(corpusId: string): Promise<NetworkSequenceArtifact> {
+  return request(`/api/corpora/${corpusId}/network-sequence`)
+}
+
+export function buildNetworkSequence(corpusId: string): Promise<NetworkSequenceArtifact> {
+  return request(`/api/corpora/${corpusId}/network-sequence`, { method: 'POST' })
 }

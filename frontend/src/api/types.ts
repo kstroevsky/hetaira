@@ -209,6 +209,28 @@ export type SemanticStateArtifact = {
   guardrail: string
 }
 
+export type NetworkSequenceArtifact = {
+  artifact_id: string
+  content_hash: string
+  hawkes: { status: string; method?: string; spectral_radius?: number; reason?: string }
+  multilayer_communities: {
+    layers: Record<string, { status: string; communities: Array<{ community_id: number; participants: Array<{ id: string; name: string }> }> }>
+    dynamic_interaction: Array<{ month: string; status: string }>
+    knowledge_flow: { status: string; reason: string }
+  }
+  network_motifs: {
+    status: string
+    permutations: number
+    motifs: Record<string, { observed: number; null_mean: number; null_sd: number }>
+  }
+  dialogue_sequences: {
+    status: string
+    transitions: Array<{ from: string; to: string; count: number }>
+    frequent_patterns: Array<{ sequence: string[]; count: number }>
+  }
+  guardrail: string
+}
+
 export type Workspace = {
   corpus: Corpus
   messages: MessageItem[]

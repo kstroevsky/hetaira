@@ -24,6 +24,7 @@ from .models import (
     Corpus,
     ImportRun,
 )
+from .network_sequence import NetworkSequenceService
 from .object_store import ContentAddressedStore
 from .observatory import ObservatoryBuilder
 from .ontology import PrivacyPolicy
@@ -361,6 +362,29 @@ def get_semantic_state(corpus_id: str, session: Session = Depends(get_session)) 
     artifact = SemanticStateService(session).latest(corpus_id)
     if artifact is None:
         raise HTTPException(404, "semantic state has not been built")
+    return {"artifact_id": artifact.id, "content_hash": artifact.content_hash, **artifact.payload}
+
+
+@router.post("/corpora/{corpus_id}/network-sequence", status_code=201)
+def build_network_sequence(corpus_id: str, session: Session = Depends(get_session)) -> dict:
+    try:
+        artifact = NetworkSequenceService(session).build(corpus_id)
+        return {
+            "artifact_id": artifact.id,
+            "content_hash": artifact.content_hash,
+            **artifact.payload,
+        }
+    except LookupError as error:
+        raise HTTPException(404, str(error)) from error
+
+
+@router.get("/corpora/{corpus_id}/network-sequence")
+def get_network_sequence(corpus_id: str, session: Session = Depends(get_session)) -> dict:
+    if session.get(Corpus, corpus_id) is None:
+        raise HTTPException(404, "corpus not found")
+    artifact = NetworkSequenceService(session).latest(corpus_id)
+    if artifact is None:
+        raise HTTPException(404, "network and sequence dynamics have not been built")
     return {"artifact_id": artifact.id, "content_hash": artifact.content_hash, **artifact.payload}
 
 

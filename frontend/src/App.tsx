@@ -12,6 +12,7 @@ import { MessageTimeline } from './components/MessageTimeline'
 import { LinguisticWorkbench } from './components/LinguisticWorkbench'
 import { ReasoningGraphWorkbench } from './components/ReasoningGraphWorkbench'
 import { SemanticStateWorkbench } from './components/SemanticStateWorkbench'
+import { NetworkSequenceWorkbench } from './components/NetworkSequenceWorkbench'
 import { ObservatoryOverview } from './components/ObservatoryOverview'
 import { RunStrip } from './components/RunStrip'
 import { Sidebar } from './components/Sidebar'
@@ -144,6 +145,8 @@ export default function App() {
           <ReasoningGraphWorkbench corpusId={corpus.id} />
         ) : activeNav === 'Состояния' ? (
           <SemanticStateWorkbench corpusId={corpus.id} />
+        ) : activeNav === 'Сети' ? (
+          <NetworkSequenceWorkbench corpusId={corpus.id} />
         ) : (
           <main className="workspace-grid">
             <MessageTimeline

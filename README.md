@@ -57,6 +57,10 @@ The **Состояния** workspace compares NMF and LDA topic representations,
 change, shows independent CUSUM/binary-segmentation candidates, and exposes unlabeled Gaussian-HMM
 conversation states.
 
+The **Сети** workspace keeps interaction, semantic-similarity, support, and attack layers separate;
+shows static and monthly Leiden communities; compares motifs with a seeded degree-preserving null;
+mines dialogue-act sequences; and reports Hawkes-style excitation only when enough events exist.
+
 The default zero-configuration database is SQLite. PostgreSQL 18 + pgvector is the intended canonical deployment:
 
 ```bash

@@ -1165,6 +1165,21 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .state-grid article > div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--slate-200); }
 .state-grid article > div span, .state-grid article > small { color: var(--slate-500); font-size: 9px; }
 .state-grid article > small, .state-grid article > p { display: block; padding: 8px 12px; }
+.network-workbench, .network-empty { min-height: 0; overflow: auto; background: #f7f8fb; }
+.network-empty { display: grid; place-content: center; justify-items: center; gap: 12px; }
+.network-empty > svg { width: 44px; color: var(--violet); }
+.network-empty button { display: inline-flex; gap: 7px; border: 0; background: var(--navy-900); color: #fff; padding: 9px 14px; }
+.network-empty button svg { width: 15px; }
+.network-workbench > header { padding: 22px 26px; border-bottom: 1px solid var(--slate-200); background: #fff; }
+.network-workbench > header span { color: var(--violet); font: 9px ui-monospace, monospace; }
+.network-workbench h1 { margin: 5px 0; }
+.network-workbench > header p { margin: 0; color: var(--slate-500); font-size: 11px; }
+.network-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 18px 26px; }
+.network-grid article { border: 1px solid var(--slate-200); background: #fff; }
+.network-grid h2 { margin: 0; padding: 11px 13px; border-bottom: 1px solid var(--slate-200); font-size: 13px; }
+.network-grid article > div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--slate-200); }
+.network-grid article > div span, .network-grid article > p { color: var(--slate-500); font-size: 9px; }
+.network-grid article > p { padding: 8px 12px; }
 
 @media (max-width: 1250px) {
   :root { --sidebar-width: 76px; }
