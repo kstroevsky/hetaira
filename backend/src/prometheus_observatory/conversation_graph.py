@@ -46,7 +46,7 @@ from .ontology import PrivacyPolicy
 from .text import normalize_text
 from .workspace import sender_display_name
 
-ANALYSIS_VERSION = "conversation-graph-rules-ru@0.1.0"
+ANALYSIS_VERSION = "conversation-graph-rules-ru@0.2.0"
 LEXICAL_METHOD = "lexical-cosine-ru@0.1.0"
 ENCODER_METHOD = "multilingual-e5-cosine@0.1.0"
 TOKEN_PATTERN = re.compile(r"[\w-]+", re.UNICODE)
@@ -134,7 +134,7 @@ class ConversationGraphService:
                 "result_limit must be positive and no greater than candidate_limit <= 200"
             )
         codebook_release, codebook_hash = release_identity(
-            self.session, "conversation-graph-ru", "0.1.0"
+            self.session, "conversation-graph-ru", "0.2.0"
         )
         configuration = {
             "analysis_version": ANALYSIS_VERSION,
@@ -376,6 +376,7 @@ class ConversationGraphService:
         message_ids |= {edge["source_message_id"] for edge in explicit}
         message_ids |= {edge["target_message_id"] for edge in explicit}
         messages = self._message_payloads(run.snapshot_id, message_ids)
+        message_by_id = {message["id"]: message for message in messages}
         reviews = self._review_map(
             [edge.annotation_id for edge in responses if edge.annotation_id]
             + [edge.annotation_id for edge in discourse]
@@ -398,6 +399,18 @@ class ConversationGraphService:
                     "score_semantics": "uncalibrated_similarity",
                     "status": edge.status,
                     "review": reviews.get(edge.annotation_id),
+                    "proposal_eligible": self._proposal_eligibility(
+                        message_by_id[edge.source_message_id]["reply_to_external_id"],
+                        message_by_id[edge.target_message_id]["external_id"],
+                        edge.rank or 0,
+                        edge.confidence,
+                    )[0],
+                    "eligibility_reasons": self._proposal_eligibility(
+                        message_by_id[edge.source_message_id]["reply_to_external_id"],
+                        message_by_id[edge.target_message_id]["external_id"],
+                        edge.rank or 0,
+                        edge.confidence,
+                    )[1],
                 }
                 for edge in responses
             ],
@@ -1048,6 +1061,18 @@ class ConversationGraphService:
                         "raw_score": candidate.score,
                         "rank": rank,
                         "source_native": candidate.source_native,
+                        "proposal_eligible": self._proposal_eligibility(
+                            source.reply_to_external_id,
+                            candidate.row.external_id,
+                            rank,
+                            candidate.score,
+                        )[0],
+                        "eligibility_reasons": self._proposal_eligibility(
+                            source.reply_to_external_id,
+                            candidate.row.external_id,
+                            rank,
+                            candidate.score,
+                        )[1],
                         "target_evidence": self._row_evidence(candidate.row),
                     }
                 }
@@ -1090,7 +1115,15 @@ class ConversationGraphService:
         source: MessageRow,
         ranked: list[RankedCandidate],
     ) -> None:
-        for candidate in ranked:
+        for rank, candidate in enumerate(ranked, start=1):
+            eligible, eligibility_reasons = self._proposal_eligibility(
+                source.reply_to_external_id,
+                candidate.row.external_id,
+                rank,
+                candidate.score,
+            )
+            if not eligible:
+                continue
             for relation_type in self._discourse_labels(
                 source.text, candidate.row.text, candidate.score
             ):
@@ -1107,6 +1140,7 @@ class ConversationGraphService:
                         "target_message_id": candidate.row.message_id,
                         "method": ANALYSIS_VERSION,
                         "accepted_edge": False,
+                        "eligibility_reasons": eligibility_reasons,
                     },
                     evidence=[self._row_evidence(source), self._row_evidence(candidate.row)],
                     status="provisional",
@@ -1164,6 +1198,23 @@ class ConversationGraphService:
         if explicit is not None and explicit not in selected:
             selected = [*selected[: max(0, result_limit - 1)], explicit]
         return selected
+
+    @staticmethod
+    def _proposal_eligibility(
+        source_reply_to_external_id: str | None,
+        target_external_id: str,
+        rank: int,
+        score: float,
+    ) -> tuple[bool, list[str]]:
+        if source_reply_to_external_id:
+            if target_external_id == source_reply_to_external_id:
+                return True, ["source_native_reply_target"]
+            return False, ["source_native_reply_target_takes_precedence"]
+        if rank != 1:
+            return False, ["only_rank_1_is_relation_eligible"]
+        if score < 0.15:
+            return False, ["lexical_similarity_below_0.15"]
+        return True, ["rank_1", "lexical_similarity_at_least_0.15"]
 
     @staticmethod
     def _term_counts(value: str) -> Counter[str]:
@@ -1296,6 +1347,7 @@ class ConversationGraphService:
                 "id": message.id,
                 "conversation_id": message.conversation_id,
                 "external_id": message.external_id,
+                "reply_to_external_id": message.reply_to_external_id,
                 "revision_id": revision.id,
                 "sender_id": message.sender_id,
                 "sender_name": sender_display_name(message, participant),
@@ -1416,7 +1468,7 @@ class ConversationGraphService:
         return {
             "corpus_snapshot_id": run.snapshot_id,
             "ontology_version": self.settings.ontology_version,
-            "codebook_version": "conversation-graph-ru@0.1.0",
+            "codebook_version": run.configuration["codebook_release"],
             "codebook_artifact_hash": run.configuration["codebook_artifact_hash"],
             "pipeline_version": ANALYSIS_VERSION,
             "model_provider": "deterministic" if model == "rules-ru-v1" else "local",

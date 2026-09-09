@@ -15,6 +15,7 @@ import { SemanticStateWorkbench } from './components/SemanticStateWorkbench'
 import { NetworkSequenceWorkbench } from './components/NetworkSequenceWorkbench'
 import { StatisticalSynthesisWorkbench } from './components/StatisticalSynthesisWorkbench'
 import { ExperimentalDynamicsWorkbench } from './components/ExperimentalDynamicsWorkbench'
+import { InteractionDynamicsWorkbench } from './components/InteractionDynamicsWorkbench'
 import { ObservatoryOverview } from './components/ObservatoryOverview'
 import { RunStrip } from './components/RunStrip'
 import { Sidebar } from './components/Sidebar'
@@ -145,6 +146,8 @@ export default function App() {
           />
         ) : activeNav === 'Аргументы' ? (
           <ReasoningGraphWorkbench corpusId={corpus.id} />
+        ) : activeNav === 'Динамика' ? (
+          <InteractionDynamicsWorkbench corpusId={corpus.id} />
         ) : activeNav === 'Состояния' ? (
           <SemanticStateWorkbench corpusId={corpus.id} />
         ) : activeNav === 'Сети' ? (

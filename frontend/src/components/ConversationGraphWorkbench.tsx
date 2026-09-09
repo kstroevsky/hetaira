@@ -4,8 +4,11 @@ import { useMemo, useState } from 'react'
 
 import {
   cancelConversationGraphRun,
+  createConversationGraphReference,
   createConversationGraphRun,
+  fetchAnnotationSets,
   fetchConversationGraph,
+  fetchConversationGraphEvaluation,
   resumeConversationGraphRun,
   reviewManualAnnotation,
 } from '../api/client'
@@ -15,6 +18,7 @@ import type {
   DiscourseRelation,
   ResponseCandidate,
 } from '../api/types'
+import { ArtifactDetails } from './ArtifactDetails'
 
 type ConversationGraphWorkbenchProps = {
   corpusId: string
@@ -68,6 +72,13 @@ export function ConversationGraphWorkbench({
     queryFn: () => fetchConversationGraph(corpusId, selectedMessageId || undefined),
     retry: false,
   })
+  const setsQuery = useQuery({
+    queryKey: ['annotation-sets', corpusId],
+    queryFn: () => fetchAnnotationSets(corpusId),
+  })
+  const graphReference = setsQuery.data?.find(
+    (item) => item.sampling_spec?.judgment_protocol === 'single_final_reference_v1',
+  )
   const refresh = () => client.invalidateQueries({ queryKey: ['conversation-graph', corpusId] })
   const createRun = useMutation({
     mutationFn: () => createConversationGraphRun(corpusId, true),
@@ -88,11 +99,21 @@ export function ConversationGraphWorkbench({
     }) => reviewManualAnnotation(annotationId, decision, reviewer),
     onSuccess: refresh,
   })
+  const createReference = useMutation({
+    mutationFn: () => createConversationGraphReference(corpusId),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['annotation-sets', corpusId] }),
+  })
   const messages = useMemo(
     () => new Map(graphQuery.data?.messages.map((message) => [message.id, message]) ?? []),
     [graphQuery.data?.messages],
   )
   const run = graphQuery.data?.run
+  const evaluationQuery = useQuery({
+    queryKey: ['conversation-graph-evaluation', graphReference?.id, run?.id],
+    queryFn: () => fetchConversationGraphEvaluation(graphReference!.id, run!.id),
+    enabled: Boolean(graphReference?.status === 'frozen' && run?.id),
+    retry: false,
+  })
 
   if (graphQuery.isLoading) {
     return <main className="conversation-graph-empty">Загружаем граф диалога…</main>
@@ -201,6 +222,10 @@ export function ConversationGraphWorkbench({
               <strong>#{edge.rank}</strong>
               <span>{edge.raw_score.toFixed(3)}</span>
               <small>{edge.method}</small>
+              <i className={edge.proposal_eligible ? 'eligible' : 'ranking-only'}>
+                {edge.proposal_eligible ? 'relation candidate' : 'ranking only'}
+              </i>
+              <small>{edge.eligibility_reasons.join(' · ')}</small>
             </div>
             <MessageExcerpt
               message={messages.get(edge.target_message_id)} role="кандидат"
@@ -231,6 +256,41 @@ export function ConversationGraphWorkbench({
           </article>
         ))}
       </section>
+
+      <section className="graph-section graph-evaluation">
+        <header><h2>Reference evaluation</h2><span>single-human provisional</span></header>
+        {!graphReference ? (
+          <div className="graph-evaluation-empty">
+            <p>Reference-набор для reply/discourse ещё не создан.</p>
+            <button type="button" onClick={() => createReference.mutate()}>
+              Создать reference-набор
+            </button>
+          </div>
+        ) : graphReference.status !== 'frozen' ? (
+          <div className="graph-evaluation-empty">
+            <p>{graphReference.name} · {graphReference.status}. Завершите FINAL-разметку и заморозьте набор во вкладке «Разметка».</p>
+          </div>
+        ) : evaluationQuery.data ? (
+          <div className="graph-evaluation-grid">
+            <div><span>Candidate recall</span><strong>{evaluationQuery.data.reply_ranking['lexical-cosine-ru@0.1.0']?.candidate_recall?.toFixed(3) ?? '—'}</strong></div>
+            <div><span>MRR</span><strong>{evaluationQuery.data.reply_ranking['lexical-cosine-ru@0.1.0']?.mean_reciprocal_rank?.toFixed(3) ?? '—'}</strong></div>
+            <div><span>Discourse precision</span><strong>{evaluationQuery.data.discourse.precision?.toFixed(3) ?? '—'}</strong></div>
+            <div><span>Discourse recall</span><strong>{evaluationQuery.data.discourse.recall?.toFixed(3) ?? '—'}</strong></div>
+            <div><span>Discourse F1</span><strong>{evaluationQuery.data.discourse.f1?.toFixed(3) ?? '—'}</strong></div>
+            <div><span>Calibration</span><strong>{evaluationQuery.data.calibration.reason}</strong></div>
+          </div>
+        ) : <div className="graph-evaluation-empty"><p>Evaluation недоступна: {String(evaluationQuery.error ?? 'загрузка')}</p></div>}
+      </section>
+      <section className="graph-section">
+        <header><h2>Run diagnostics</h2><span>{run.configuration.analysis_version as string}</span></header>
+        <div className="graph-task-grid">
+          {run.tasks.map((task) => <article key={task.id}>
+            <strong>{task.task_key}</strong><span>{task.status} · {Math.round(task.progress * 100)}%</span>
+            {task.error ? <small>{task.error}</small> : null}
+          </article>)}
+        </div>
+      </section>
+      <ArtifactDetails value={graphQuery.data} />
     </main>
   )
 }

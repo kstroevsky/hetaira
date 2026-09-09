@@ -1,0 +1,17 @@
+codebook_key: reasoning-graph-ru
+version: 0.2.0
+language: ru
+validated: false
+status: provisional
+argument_components:
+  labels: [CLAIM, PREMISE, EVIDENCE]
+argument_relations:
+  labels: [SUPPORTS, ATTACKS, NONE]
+  proposal_policy:
+    - Consume source-native message pairs or eligible rank-1 inferred pairs only.
+    - Preserve ambiguous multi-proposition pairs as candidates without creating an edge.
+    - Never accept an edge automatically.
+nli:
+  labels: [ENTAILMENT, CONTRADICTION, NEUTRAL]
+  role: independent_challenger
+  guardrail: NLI output does not determine truth or automatically define an argument relation.

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "phase": "IMPLEMENTED_ALL_ROADMAP_BASELINES",
+  "phase": "GRAPH_PRECISION_AND_COMPLETE_UI_COVERAGE",
   "source_sha256": "8fb13ae85939bafea092b90c8a19242f4d383731c35f1faf10fe428532db0c60",
-  "roadmap_sha256": "42f9a9402511da536dc26cdfcf94593ae9f070e7706db66f5bbe29fc2d91b1e6",
+  "roadmap_sha256": "fa299bc0de0acf5f0c9e0bc373321b4b5552d96f8543424efbb26cf23df5706c",
   "ledger_sha256": "60103b9be2f64e3840aac5014470aa5b8d6cb64611b04f8ecef0ea39ebcc1f52",
   "source_area_coverage": "22/22",
   "requirements": {
@@ -18,6 +18,22 @@
   "network_sequence_ids": ["NLP-09", "NLP-15", "NLP-16", "NLP-17"],
   "horizontal_statistics_ids": ["NLP-18", "NLP-19"],
   "experimental_ids": ["NLP-20", "NLP-21"],
+  "precision_revision": {
+    "conversation_graph": "conversation-graph-rules-ru@0.2.0",
+    "reasoning_graph": "reasoning-graph-ru@0.2.0",
+    "regression_checks": [
+      "low-similarity ranked candidates do not create discourse relations",
+      "source-native reply targets take precedence",
+      "multi-proposition endpoints remain argument candidates without edges"
+    ]
+  },
+  "frontend_coverage": {
+    "status": "COMPLETE_FOR_IMPLEMENTED_BASELINE_OUTPUTS",
+    "ledger": "docs/frontend-feature-coverage.md",
+    "technical_payload_access": true,
+    "dedicated_interaction_dynamics_surface": true,
+    "graph_reference_evaluation_surface": true
+  },
   "independent_plan_review": {
     "status": "PASS_AFTER_REPAIR",
     "repairs": [

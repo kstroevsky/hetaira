@@ -41,7 +41,7 @@ from .models import (
 )
 from .ontology import PrivacyPolicy
 
-ANALYSIS_VERSION = "reasoning-graph-ru@0.1.0"
+ANALYSIS_VERSION = "reasoning-graph-ru@0.2.0"
 PREMISE = re.compile(r"\b(потому что|так как|поскольку|ведь|поэтому|следовательно)\b", re.I)
 EVIDENCE = re.compile(r"\b(по данным|исследовани\w*|показыва\w*|наблюдени\w*|согласно)\b", re.I)
 SUPPORT = re.compile(r"\b(соглас\w*|верно|поддержива\w*|именно|да[, ])\b", re.I)
@@ -66,7 +66,7 @@ class ReasoningGraphService:
             conversation = ConversationGraphService(self.session).create(
                 corpus_id, include_encoder=False
             )
-        release, codebook_hash = release_identity(self.session, "reasoning-graph-ru", "0.1.0")
+        release, codebook_hash = release_identity(self.session, "reasoning-graph-ru", "0.2.0")
         configuration = {
             "analysis_version": ANALYSIS_VERSION,
             "codebook_release": release,
@@ -223,6 +223,18 @@ class ReasoningGraphService:
             if proposition_ids
             else {}
         )
+        annotations = list(
+            self.session.scalars(
+                select(Annotation)
+                .where(
+                    Annotation.run_id == run.id,
+                    Annotation.kind.in_(
+                        ["argument_component", "argument_relation_candidate", "nli_relation"]
+                    ),
+                )
+                .order_by(Annotation.created_at, Annotation.id)
+            )
+        )
         return {
             "run": self.run_payload(run.id),
             "propositions": [
@@ -245,6 +257,38 @@ class ReasoningGraphService:
                     "status": relation.status,
                 }
                 for relation in relations
+            ],
+            "argument_components": [
+                {
+                    "id": annotation.id,
+                    "proposition_id": annotation.value["proposition_id"],
+                    "component_type": annotation.value["component_type"],
+                    "status": annotation.status,
+                    "evidence": annotation.evidence,
+                }
+                for annotation in annotations
+                if annotation.kind == "argument_component"
+            ],
+            "relation_candidates": [
+                {
+                    "id": annotation.id,
+                    **annotation.value,
+                    "status": annotation.status,
+                    "evidence": annotation.evidence,
+                }
+                for annotation in annotations
+                if annotation.kind == "argument_relation_candidate"
+            ],
+            "nli_challengers": [
+                {
+                    "id": annotation.id,
+                    **annotation.value,
+                    "status": annotation.status,
+                    "evidence": annotation.evidence,
+                    "calibrated_confidence": annotation.calibrated_confidence,
+                }
+                for annotation in annotations
+                if annotation.kind == "nli_relation"
             ],
             "guardrail": (
                 "NLI and argument links are provisional evidence channels, not truth or causality."
@@ -290,7 +334,7 @@ class ReasoningGraphService:
                 "argument_component",
                 {"component_type": component, "proposition_id": item["proposition"].id},
                 source.evidence,
-                "argument-component-rules@0.1.0",
+                "argument-component-rules@0.2.0",
             )
             self.session.add(annotation)
             self.session.flush()
@@ -306,15 +350,22 @@ class ReasoningGraphService:
         by_message: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for proposition in propositions:
             by_message[proposition["message_id"]].append(proposition)
-        message_pairs = {
-            (relation.source_message_id, relation.target_message_id)
-            for relation in self.session.scalars(
-                select(ResponseRelation).where(
-                    ResponseRelation.run_id == conversation_run_id,
-                    ResponseRelation.scoring_method == LEXICAL_METHOD,
-                )
-            )
+        source_messages = {
+            message.id: message
+            for message in self.session.scalars(select(Message).where(Message.id.in_(by_message)))
         }
+        message_pairs: set[tuple[str, str]] = set()
+        for relation in self.session.scalars(
+            select(ResponseRelation).where(
+                ResponseRelation.run_id == conversation_run_id,
+                ResponseRelation.scoring_method == LEXICAL_METHOD,
+                ResponseRelation.rank == 1,
+                ResponseRelation.confidence >= 0.15,
+            )
+        ):
+            source = source_messages.get(relation.source_message_id)
+            if source is not None and source.reply_to_external_id is None:
+                message_pairs.add((relation.source_message_id, relation.target_message_id))
         self._run(conversation_run_id, expected_type="conversation-graph")
         sources = list(
             self.session.scalars(
@@ -351,16 +402,31 @@ class ReasoningGraphService:
             )
         ):
             discourse[(item.source_message_id, item.target_message_id)].add(item.relation_type)
+        source_propositions: dict[tuple[str, str], set[str]] = defaultdict(set)
+        target_propositions: dict[tuple[str, str], set[str]] = defaultdict(set)
+        for source, target in pairs:
+            message_pair = (source["message_id"], target["message_id"])
+            source_propositions[message_pair].add(source["proposition"].id)
+            target_propositions[message_pair].add(target["proposition"].id)
         for index, (source, target) in enumerate(pairs, start=1):
             relation_type = None
-            discourse_types = discourse.get((source["message_id"], target["message_id"]), set())
-            if ATTACK.search(source["text"]) or discourse_types & {
-                "REJECTS",
-                "CORRECTS",
-                "CONTRASTS",
-            }:
+            message_pair = (source["message_id"], target["message_id"])
+            discourse_types = discourse.get(message_pair, set())
+            ambiguous_endpoints = (
+                len(source_propositions[message_pair]) > 1
+                or len(target_propositions[message_pair]) > 1
+            )
+            if not ambiguous_endpoints and (
+                ATTACK.search(source["text"])
+                or discourse_types
+                & {
+                    "REJECTS",
+                    "CORRECTS",
+                    "CONTRASTS",
+                }
+            ):
                 relation_type = "ATTACKS"
-            elif (
+            elif not ambiguous_endpoints and (
                 SUPPORT.search(source["text"])
                 or PREMISE.search(source["text"])
                 or discourse_types & {"ACCEPTS", "ANSWERS", "ELABORATES"}
@@ -374,9 +440,15 @@ class ReasoningGraphService:
                     "source_proposition_id": source["proposition"].id,
                     "target_proposition_id": target["proposition"].id,
                     "accepted_relation": None,
+                    "proposal_eligible": not ambiguous_endpoints,
+                    "eligibility_reasons": (
+                        ["single_proposition_endpoints"]
+                        if not ambiguous_endpoints
+                        else ["ambiguous_multi_proposition_endpoints"]
+                    ),
                 },
                 source["annotation"].evidence + target["annotation"].evidence,
-                "argument-pair-candidates@0.1.0",
+                "argument-pair-candidates@0.2.0",
             )
             self.session.add(candidate)
             if relation_type:
@@ -391,7 +463,7 @@ class ReasoningGraphService:
                         "accepted_edge": False,
                     },
                     source["annotation"].evidence + target["annotation"].evidence,
-                    "argument-relation-rules@0.1.0",
+                    "argument-relation-rules@0.2.0",
                 )
                 self.session.add(annotation)
                 self.session.flush()
@@ -405,7 +477,7 @@ class ReasoningGraphService:
                         relation_type=relation_type,
                         annotation_id=annotation.id,
                         confidence=None,
-                        scoring_method="argument-relation-rules@0.1.0",
+                        scoring_method="argument-relation-rules@0.2.0",
                         status="provisional",
                     )
                 )

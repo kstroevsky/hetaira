@@ -114,6 +114,8 @@ export type ResponseCandidate = {
   rank: number
   raw_score: number
   score_semantics: 'uncalibrated_similarity'
+  proposal_eligible: boolean
+  eligibility_reasons: string[]
   status: string
   review: AnnotationReview | null
 }
@@ -146,6 +148,31 @@ export type ConversationGraph = {
   discourse_relations: DiscourseRelation[]
   page: { offset: number; limit: number }
   guardrail: string
+}
+
+export type ConversationGraphEvaluation = {
+  status: string
+  reply_ranking: Record<string, {
+    reference_targets?: number
+    hits?: number
+    candidate_recall?: number | null
+    mean_reciprocal_rank?: number | null
+    coverage?: number | null
+    comparable_sources?: number
+    disagreements?: number
+    rate?: number | null
+  }>
+  discourse: {
+    reference_relations: number
+    predicted_relations: number
+    true_positive: number
+    precision: number | null
+    recall: number | null
+    f1: number | null
+    by_label: Record<string, unknown>
+  }
+  reference_judgments: Record<string, number>
+  calibration: { ece: number | null; brier: number | null; reason: string }
 }
 
 export type LinguisticAnnotation = {
@@ -181,6 +208,33 @@ export type ReasoningGraph = {
     raw_score: number | null
     status: string
   }>
+  argument_components: Array<{
+    id: string
+    proposition_id: string
+    component_type: string
+    status: string
+    evidence: Annotation['evidence']
+  }>
+  relation_candidates: Array<{
+    id: string
+    source_proposition_id: string
+    target_proposition_id: string
+    accepted_relation: null
+    proposal_eligible: boolean
+    eligibility_reasons: string[]
+    status: string
+    evidence: Annotation['evidence']
+  }>
+  nli_challengers: Array<{
+    id: string
+    source_proposition_id: string
+    target_proposition_id: string
+    label: string
+    scores: Record<string, number>
+    truth_status: string
+    status: string
+    calibrated_confidence: number | null
+  }>
   guardrail: string
 }
 
@@ -196,14 +250,32 @@ export type SemanticStateArtifact = {
     terms: Array<{ term: string; average_pairwise_cosine_distance: number }>
   }
   topic_challengers: {
-    models: Record<string, { status: string; topic_count?: number; reason?: string }>
+    models: Record<string, {
+      status: string
+      topic_count?: number
+      reason?: string
+      topics?: Array<{
+        topic_id: number
+        terms: string[]
+        trajectory: Array<{ month: string; documents: number; share: number }>
+      }>
+    }>
     agreement: { adjusted_rand_index: number; interpretation: string } | null
   }
-  change_points: { message_activity: Array<{ method: string; month: string; score: number }> }
+  change_points: {
+    message_activity: Array<{ method: string; month: string; score: number }>
+    topic_prevalence?: Record<string, Array<{
+      topic_id: number
+      candidates: Array<{ method: string; month: string; score: number }>
+    }>>
+  }
   conversation_states: {
     status: string
     states_are_unlabeled?: boolean
     sequence?: Array<{ month: string; state: string }>
+    transition_matrix?: number[][]
+    state_means_standardized?: number[][]
+    features?: string[]
     reason?: string
   }
   guardrail: string
@@ -215,8 +287,14 @@ export type NetworkSequenceArtifact = {
   hawkes: { status: string; method?: string; spectral_radius?: number; reason?: string }
   multilayer_communities: {
     layers: Record<string, { status: string; communities: Array<{ community_id: number; participants: Array<{ id: string; name: string }> }> }>
-    dynamic_interaction: Array<{ month: string; status: string }>
+    dynamic_interaction: Array<{
+      month: string
+      status: string
+      communities?: Array<{ community_id: number; participants: Array<{ id: string; name: string }> }>
+      reason?: string
+    }>
     knowledge_flow: { status: string; reason: string }
+    stance?: { status: string; reason: string }
   }
   network_motifs: {
     status: string
@@ -254,6 +332,9 @@ export type StatisticalSynthesisArtifact = {
     sample_size?: number
     events?: number
     fixed_effects?: Record<string, { log_odds: number; odds_ratio: number }>
+    participant_random_intercepts?: Record<string, number>
+    conversation_random_intercepts?: Record<string, number>
+    controls?: string[]
     uncertainty?: Record<string, string>
   }
   guardrail: string
@@ -273,7 +354,16 @@ export type ExperimentalDynamicsArtifact = {
       transfer_entropy_bits: number
       one_sided_p: number
     }>
-    partial_information?: Array<{ target_id: string; synergy_bits: number }>
+    partial_information?: Array<{
+      left_source_id: string
+      right_source_id: string
+      target_id: string
+      redundancy_bits: number
+      unique_left_bits: number
+      unique_right_bits: number
+      synergy_bits: number
+      estimator: string
+    }>
   }
   linguistic_affect_dynamics: {
     status: string
@@ -281,6 +371,39 @@ export type ExperimentalDynamicsArtifact = {
     messages_with_nonzero_signal: number
     interpretation: string
     monthly_trajectory: Array<Record<string, number | string>>
+  }
+  guardrail: string
+}
+
+export type InteractionDynamicsArtifact = {
+  run: { id: string; snapshot_id: string; status: string; progress: number; configuration: Record<string, unknown> }
+  measurements: {
+    'directional-coordination@0.1.0': {
+      estimate: Array<{ initiator_id: string; responder_id: string; events: number; accommodation_delta: number; lower: number; upper: number }>
+      sample_size: number
+      denominator: number
+      uncertainty: Record<string, unknown>
+      missingness: Record<string, number>
+      controls: string[]
+    }
+    'response-survival@0.1.0': {
+      estimate: { median_minutes: number | null; survival_curve: Array<{ minutes: number; survival: number; at_risk: number; replies: number; censored: number }> }
+      sample_size: number
+      numerator: number
+      denominator: number
+      uncertainty: Record<string, unknown>
+      missingness: Record<string, number>
+      controls: string[]
+    }
+    'relational-event-choice@0.1.0': {
+      estimate: { coefficients?: Record<string, number>; relative_choice_odds?: Record<string, number>; converged?: boolean }
+      sample_size: number
+      denominator: number
+      uncertainty: Record<string, unknown>
+      missingness: Record<string, number>
+      controls: string[]
+      causal_status: string
+    }
   }
   guardrail: string
 }

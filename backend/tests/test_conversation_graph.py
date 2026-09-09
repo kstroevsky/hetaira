@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -393,3 +394,86 @@ def test_local_encoder_challenger_caches_features_and_keeps_scores_uncalibrated(
         candidate["score_semantics"] == "uncalibrated_similarity"
         for candidate in encoder_candidates
     )
+
+
+def test_discourse_proposals_do_not_expand_across_all_ranked_candidates(
+    db_session: Session, tmp_path: Path
+) -> None:
+    payload = {
+        "id": "precision",
+        "name": "Precision",
+        "messages": [
+            {
+                "id": 1,
+                "type": "message",
+                "date": "2026-01-01T10:00:00+00:00",
+                "from": "Анна",
+                "from_id": "anna",
+                "text": "Сервер и релиз.",
+            },
+            {
+                "id": 2,
+                "type": "message",
+                "date": "2026-01-01T10:01:00+00:00",
+                "from": "Борис",
+                "from_id": "boris",
+                "text": "Кофе и погода.",
+            },
+            {
+                "id": 3,
+                "type": "message",
+                "date": "2026-01-01T10:02:00+00:00",
+                "from": "Вера",
+                "from_id": "vera",
+                "text": "Согласна.",
+            },
+            {
+                "id": 4,
+                "type": "message",
+                "date": "2026-01-01T10:03:00+00:00",
+                "from": "Вера",
+                "from_id": "vera",
+                "reply_to_message_id": 1,
+                "text": "Согласна, сервер и релиз.",
+            },
+        ],
+    }
+    path = tmp_path / "precision.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    corpus = Corpus(name="Precision", language="ru", privacy_policy="LOCAL_ONLY")
+    db_session.add(corpus)
+    db_session.commit()
+    with path.open("rb") as source:
+        stored = ContentAddressedStore(tmp_path / "objects").put_stream(source)
+    ImportService(db_session).import_object(
+        corpus, stored, path.name, "application/json", "telegram"
+    )
+
+    service = ConversationGraphService(db_session)
+    run = service.create(corpus.id, include_encoder=False)
+    messages = {message.external_id: message for message in db_session.scalars(select(Message))}
+    inferred = service.graph(corpus.id, run_id=run.id)
+    third_candidates = [
+        item
+        for item in inferred["response_candidates"]
+        if item["source_message_id"] == messages["3"].id
+    ]
+    fourth_relations = list(
+        db_session.scalars(
+            select(DiscourseRelation).where(
+                DiscourseRelation.run_id == run.id,
+                DiscourseRelation.source_message_id == messages["4"].id,
+            )
+        )
+    )
+
+    assert len(third_candidates) == 2
+    assert all(item["proposal_eligible"] is False for item in third_candidates)
+    assert not db_session.scalar(
+        select(DiscourseRelation).where(
+            DiscourseRelation.run_id == run.id,
+            DiscourseRelation.source_message_id == messages["3"].id,
+        )
+    )
+    assert fourth_relations
+    assert {item.target_message_id for item in fourth_relations} == {messages["1"].id}

@@ -22,6 +22,12 @@ horizon. These are operational defaults, not scientific thresholds. Rankings nev
 edges automatically. Encoder cosine is uncalibrated; ECE and Brier scores remain unavailable until
 a probabilistic task model exists.
 
+The v0.2 precision policy keeps broad response rankings for recall and restricts relation proposals.
+When source-native reply metadata exists, only that target is eligible. Without it, only rank 1 with
+lexical cosine at least 0.15 is eligible; the threshold is an operational rule rather than a
+calibrated probability. Reasoning candidates with multiple source or target propositions remain
+visible but produce no support/attack edge until endpoints are resolved.
+
 Initial discourse labels are `ANSWERS`, `ELABORATES`, `CONTRASTS`, `ACKNOWLEDGES`, `CORRECTS`,
 `CLARIFIES`, `ACCEPTS`, and `REJECTS`. Multiple labels and targets are allowed. These labels describe
 textual relations and do not establish truth, causation, influence, stance, or internal state.

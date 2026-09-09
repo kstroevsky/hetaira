@@ -155,6 +155,12 @@ describe('Prometheus workbench', () => {
     expect(screen.getByText('Цепочка доказательств')).toBeInTheDocument()
     expect(screen.getByText('LOCAL ONLY')).toBeInTheDocument()
     expect(screen.getByLabelText('Активный снимок корпуса')).toHaveTextContent('snapshot')
+    for (const name of [
+      'Граф диалога', 'Лингвистика', 'Аргументы', 'Динамика', 'Состояния',
+      'Сети', 'Статистика', 'Эксперименты',
+    ]) {
+      expect(screen.getByRole('button', { name })).toBeVisible()
+    }
   })
 
   it('opens the Russian annotation desk from primary navigation', async () => {
@@ -190,7 +196,8 @@ describe('Prometheus workbench', () => {
         id: 'candidate-1', annotation_id: 'annotation-1', source_message_id: 'm1',
         target_message_id: 'm0', source_revision_id: 'r1', target_revision_id: 'r0',
         method: 'lexical-cosine-ru@0.1.0', rank: 1, raw_score: 0.5,
-        score_semantics: 'uncalibrated_similarity', status: 'provisional', review: null,
+        score_semantics: 'uncalibrated_similarity', proposal_eligible: true,
+        eligibility_reasons: ['source_native_reply_target'], status: 'provisional', review: null,
       }],
       discourse_relations: [{
         id: 'discourse-1', annotation_id: 'annotation-2', source_message_id: 'm1',
@@ -233,6 +240,7 @@ describe('Prometheus workbench', () => {
     expect(screen.getByText('Дискурсивные отношения')).toBeVisible()
     expect(screen.getAllByText('REPLIES_TO').length).toBeGreaterThan(0)
     expect(screen.getByText('отвечает')).toBeVisible()
+    expect(screen.getByText('relation candidate')).toBeVisible()
     fireEvent.click(screen.getAllByLabelText('Подтвердить связь')[0])
     await waitFor(() => expect(
       calls.some((call) => call.url.includes('/annotations/annotation-1/reviews')),

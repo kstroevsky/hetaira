@@ -23,6 +23,7 @@ const items = [
   { label: 'Граф диалога', icon: GitFork },
   { label: 'Лингвистика', icon: Braces },
   { label: 'Аргументы', icon: GitMerge },
+  { label: 'Динамика', icon: Activity },
   { label: 'Состояния', icon: Activity },
   { label: 'Сети', icon: Network },
   { label: 'Статистика', icon: Calculator },

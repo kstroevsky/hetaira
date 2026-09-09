@@ -6,12 +6,14 @@ import type {
   Corpus,
   ConversationGraph,
   ConversationGraphRun,
+  ConversationGraphEvaluation,
   LinguisticAnalysis,
   ReasoningGraph,
   SemanticStateArtifact,
   NetworkSequenceArtifact,
   StatisticalSynthesisArtifact,
   ExperimentalDynamicsArtifact,
+  InteractionDynamicsArtifact,
   Microscope,
   ObservatoryOverview,
   EpisodeMicroscope,
@@ -195,6 +197,14 @@ export function createConversationGraphReference(corpusId: string): Promise<Anno
   return request(`/api/corpora/${corpusId}/conversation-graph-reference`, { method: 'POST' })
 }
 
+export function fetchConversationGraphEvaluation(
+  annotationSetId: string,
+  runId: string,
+): Promise<ConversationGraphEvaluation> {
+  const query = new URLSearchParams({ run_id: runId })
+  return request(`/api/annotation-sets/${annotationSetId}/conversation-graph-evaluation?${query}`)
+}
+
 export function fetchConversationMessages(
   corpusId: string,
   conversationId: string,
@@ -274,4 +284,12 @@ export function fetchExperimentalDynamics(corpusId: string): Promise<Experimenta
 
 export function buildExperimentalDynamics(corpusId: string): Promise<ExperimentalDynamicsArtifact> {
   return request(`/api/corpora/${corpusId}/experimental-dynamics`, { method: 'POST' })
+}
+
+export function fetchInteractionDynamics(corpusId: string): Promise<InteractionDynamicsArtifact> {
+  return request(`/api/corpora/${corpusId}/interaction-dynamics`)
+}
+
+export function buildInteractionDynamics(corpusId: string): Promise<InteractionDynamicsArtifact> {
+  return request(`/api/corpora/${corpusId}/interaction-dynamics`, { method: 'POST' })
 }

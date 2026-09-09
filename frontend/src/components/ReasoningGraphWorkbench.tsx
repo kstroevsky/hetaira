@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GitMerge, Play } from 'lucide-react'
 
 import { createReasoningRun, fetchReasoningGraph } from '../api/client'
+import { ArtifactDetails } from './ArtifactDetails'
 
 export function ReasoningGraphWorkbench({ corpusId }: { corpusId: string }) {
   const client = useQueryClient()
@@ -49,6 +50,28 @@ export function ReasoningGraphWorkbench({ corpusId }: { corpusId: string }) {
         ))}
         {!graph.data.relations.length ? <p>Правила воздержались от создания связей.</p> : null}
       </section>
+      <section className="reasoning-diagnostics">
+        <article>
+          <h2>Компоненты аргумента</h2>
+          {graph.data.argument_components.map((item) => <div key={item.id}>
+            <strong>{item.component_type}</strong><span>{propositions.get(item.proposition_id)?.text}</span>
+          </div>)}
+        </article>
+        <article>
+          <h2>Abstained relation candidates</h2>
+          {graph.data.relation_candidates.filter((item) => !item.proposal_eligible).map((item) => <div key={item.id}>
+            <strong>{item.eligibility_reasons.join(' · ')}</strong>
+            <span>{propositions.get(item.source_proposition_id)?.text} → {propositions.get(item.target_proposition_id)?.text}</span>
+          </div>)}
+        </article>
+        <article>
+          <h2>NLI challenger</h2>
+          {graph.data.nli_challengers.length ? graph.data.nli_challengers.map((item) => <div key={item.id}>
+            <strong>{item.label} · truth {item.truth_status}</strong><span>{JSON.stringify(item.scores)}</span>
+          </div>) : <p>NLI unavailable; no challenger outputs were fabricated.</p>}
+        </article>
+      </section>
+      <ArtifactDetails value={graph.data} />
     </main>
   )
 }

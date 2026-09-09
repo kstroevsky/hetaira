@@ -39,6 +39,10 @@ discourse-relation proposals without changing source-native `REPLIES_TO` edges. 
 scores are rankings, not probabilities. Configure an optional local embedding endpoint in
 `.env`; model provisioning and downloads remain explicit operator actions.
 
+Conversation-graph rules v0.2 keep every ranking visible while limiting relation proposals to the
+source-native reply target, or to a sufficiently similar rank-1 implicit candidate. The frontend
+coverage ledger is documented in `docs/frontend-feature-coverage.md`.
+
 The **Лингвистика** workspace exposes the reusable linguistic layer. `pymorphy3` observations are
 available without additional models. Dependency parses, named entities, coreference chains, and
 semantic roles are marked unavailable unless a typed local parser endpoint and pinned revision are

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -120,3 +121,62 @@ def test_local_nli_is_persisted_as_a_non_truth_challenger(
     assert nli.value["label"] == "ENTAILMENT"
     assert nli.value["truth_status"] == "not_determined"
     assert nli.calibrated_confidence is None
+
+
+def test_ambiguous_multi_proposition_endpoints_remain_candidates_without_edges(
+    db_session: Session, tmp_path: Path
+) -> None:
+    payload = {
+        "id": "ambiguous-argument",
+        "name": "Ambiguous argument",
+        "messages": [
+            {
+                "id": 1,
+                "type": "message",
+                "date": "2026-01-01T10:00:00+00:00",
+                "from": "Анна",
+                "from_id": "anna",
+                "text": "Релиз переносим на пятницу. Документацию обновляем сегодня.",
+            },
+            {
+                "id": 2,
+                "type": "message",
+                "date": "2026-01-01T10:01:00+00:00",
+                "from": "Борис",
+                "from_id": "boris",
+                "reply_to_message_id": 1,
+                "text": "Согласен, это разумно.",
+            },
+        ],
+    }
+    path = tmp_path / "ambiguous-reasoning.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    corpus = Corpus(name="Ambiguous", language="ru", privacy_policy="LOCAL_ONLY")
+    db_session.add(corpus)
+    db_session.commit()
+    with path.open("rb") as source:
+        stored = ContentAddressedStore(tmp_path / "objects").put_stream(source)
+    ImportService(db_session).import_object(
+        corpus, stored, path.name, "application/json", "telegram"
+    )
+
+    service = ReasoningGraphService(db_session)
+    run = service.create(corpus.id, include_nli=False)
+    candidates = list(
+        db_session.scalars(
+            select(Annotation).where(
+                Annotation.run_id == run.id,
+                Annotation.kind == "argument_relation_candidate",
+            )
+        )
+    )
+
+    assert len(candidates) == 2
+    assert all(item.value["proposal_eligible"] is False for item in candidates)
+    assert all(
+        item.value["eligibility_reasons"] == ["ambiguous_multi_proposition_endpoints"]
+        for item in candidates
+    )
+    assert not db_session.scalar(
+        select(PropositionRelation).where(PropositionRelation.run_id == run.id)
+    )

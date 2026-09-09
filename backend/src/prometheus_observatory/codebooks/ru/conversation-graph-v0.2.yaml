@@ -1,0 +1,20 @@
+codebook_key: conversation-graph-ru
+version: 0.2.0
+language: ru
+validated: false
+status: provisional_reference
+tasks:
+  reply_target:
+    definition: Which earlier message, if any, this message semantically responds to.
+    endpoint: message
+    judgments: [PRESENT, ABSENT, ABSTAIN]
+  discourse_relation:
+    endpoint: message
+    labels: [ANSWERS, ELABORATES, CONTRASTS, ACKNOWLEDGES, CORRECTS, CLARIFIES, ACCEPTS, REJECTS]
+proposal_policy:
+  explicit_reply: Only the source-native target is eligible.
+  implicit_reply: Only rank 1 with lexical cosine at least 0.15 is eligible.
+  guardrails:
+    - Candidate rankings remain visible even when ineligible for a relation proposal.
+    - Eligibility is an operational precision rule, not a calibrated probability threshold.
+    - No proposed relation is accepted automatically.
