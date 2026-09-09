@@ -1,7 +1,8 @@
-import { ChevronDown, ChevronRight, Copy, GitCompareArrows, Info } from 'lucide-react'
+import { ChevronDown, ChevronRight, Copy, GitCompareArrows } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import type { Annotation, Microscope } from '../api/types'
+import { MethodTip } from './MethodTip'
 
 type AnalysisMicroscopeProps = {
   microscope: Microscope
@@ -92,8 +93,8 @@ export function AnalysisMicroscope({ microscope }: AnalysisMicroscopeProps) {
   return (
     <section className="microscope-pane" aria-label="Микроскоп анализа">
       <div className="pane-heading microscope-heading">
-        <h2>
-          Микроскоп анализа <Info aria-hidden="true" />
+        <h2 className="method-heading">
+          Микроскоп анализа <MethodTip tip="analysisMicroscope" />
         </h2>
         <span className="message-id">ID: {microscope.message.external_id}</span>
       </div>

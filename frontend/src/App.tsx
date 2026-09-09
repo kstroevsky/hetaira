@@ -9,6 +9,7 @@ import { ConversationGraphWorkbench } from './components/ConversationGraphWorkbe
 import { EvidenceChain } from './components/EvidenceChain'
 import { ImportDialog } from './components/ImportDialog'
 import { MessageTimeline } from './components/MessageTimeline'
+import { TooltipProvider } from './components/MetricTip'
 import { LinguisticWorkbench } from './components/LinguisticWorkbench'
 import { ReasoningGraphWorkbench } from './components/ReasoningGraphWorkbench'
 import { SemanticStateWorkbench } from './components/SemanticStateWorkbench'
@@ -22,6 +23,10 @@ import { Sidebar } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
 
 export default function App() {
+  return <TooltipProvider><AppWorkspace /></TooltipProvider>
+}
+
+function AppWorkspace() {
   const queryClient = useQueryClient()
   const [activeNav, setActiveNav] = useState('Обзор')
   const [requestedCorpusId, setRequestedCorpusId] = useState('')

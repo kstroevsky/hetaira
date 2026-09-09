@@ -1,6 +1,7 @@
-import { ChevronUp, Info } from 'lucide-react'
+import { ChevronUp } from 'lucide-react'
 
 import type { EvidenceStage, Microscope } from '../api/types'
+import { MethodTip } from './MethodTip'
 
 type EvidenceChainProps = { microscope: Microscope }
 
@@ -38,8 +39,8 @@ export function EvidenceChain({ microscope }: EvidenceChainProps) {
   return (
     <aside className="evidence-pane" aria-label="Цепочка доказательств">
       <div className="pane-heading">
-        <h2>
-          Цепочка доказательств <Info aria-hidden="true" />
+        <h2 className="method-heading">
+          Цепочка доказательств <MethodTip tip="evidenceChain" />
         </h2>
         <button className="plain-icon" type="button" aria-label="Свернуть панель">
           <ChevronUp />

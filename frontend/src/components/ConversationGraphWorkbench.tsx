@@ -19,6 +19,7 @@ import type {
   ResponseCandidate,
 } from '../api/types'
 import { ArtifactDetails } from './ArtifactDetails'
+import { MethodTip } from './MethodTip'
 
 type ConversationGraphWorkbenchProps = {
   corpusId: string
@@ -191,7 +192,7 @@ export function ConversationGraphWorkbench({
       </section>
 
       <section className="graph-section">
-        <header><h2>Исходные ответы</h2><span>REPLIES_TO · источник</span></header>
+        <header><h2 className="method-heading">Исходные ответы <MethodTip tip="sourceReplies" /></h2><span>REPLIES_TO · источник</span></header>
         {graphQuery.data.explicit_replies.length ? graphQuery.data.explicit_replies.map((edge) => (
           <article className="graph-edge source-edge" key={`${edge.source_message_id}:${edge.target_message_id}`}>
             <MessageExcerpt
@@ -208,7 +209,7 @@ export function ConversationGraphWorkbench({
       </section>
 
       <section className="graph-section">
-        <header><h2>Кандидаты ответа</h2><span>RESPONDS_TO · не калибровано</span></header>
+        <header><h2 className="method-heading">Кандидаты ответа <MethodTip tip="responseCandidates" /></h2><span>RESPONDS_TO · не калибровано</span></header>
         {graphQuery.data.response_candidates.map((edge) => (
           <article className="graph-edge" key={edge.id}>
             <MessageExcerpt
@@ -237,7 +238,7 @@ export function ConversationGraphWorkbench({
       </section>
 
       <section className="graph-section">
-        <header><h2>Дискурсивные отношения</h2><span>правила · допускают множественность</span></header>
+        <header><h2 className="method-heading">Дискурсивные отношения <MethodTip tip="discourseRelations" /></h2><span>правила · допускают множественность</span></header>
         {graphQuery.data.discourse_relations.map((edge) => (
           <article className="graph-edge" key={edge.id}>
             <MessageExcerpt
@@ -258,7 +259,7 @@ export function ConversationGraphWorkbench({
       </section>
 
       <section className="graph-section graph-evaluation">
-        <header><h2>Reference evaluation</h2><span>single-human provisional</span></header>
+        <header><h2 className="method-heading">Reference evaluation <MethodTip tip="referenceEvaluation" /></h2><span>single-human provisional</span></header>
         {!graphReference ? (
           <div className="graph-evaluation-empty">
             <p>Reference-набор для reply/discourse ещё не создан.</p>
@@ -282,7 +283,7 @@ export function ConversationGraphWorkbench({
         ) : <div className="graph-evaluation-empty"><p>Evaluation недоступна: {String(evaluationQuery.error ?? 'загрузка')}</p></div>}
       </section>
       <section className="graph-section">
-        <header><h2>Run diagnostics</h2><span>{run.configuration.analysis_version as string}</span></header>
+        <header><h2 className="method-heading">Run diagnostics <MethodTip tip="runDiagnostics" /></h2><span>{run.configuration.analysis_version as string}</span></header>
         <div className="graph-task-grid">
           {run.tasks.map((task) => <article key={task.id}>
             <strong>{task.task_key}</strong><span>{task.status} · {Math.round(task.progress * 100)}%</span>

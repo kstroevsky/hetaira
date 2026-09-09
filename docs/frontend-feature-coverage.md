@@ -5,6 +5,18 @@ collapsible **Полный технический результат** view so c
 missingness, uncertainty, unavailable reasons, and fields not promoted into summary cards remain
 inspectable.
 
+Every methodology-bearing section and metric has an adjacent help control. The explanations define
+the method in plain language, tell the reader how to interpret the displayed value, and state the
+main epistemic limitation. The same guidance covers the source timeline, per-message microscope,
+L0–L3 evidence chain, annotation protocol, validation gate, episode microscope, all roadmap
+workspaces, and complete technical artifacts.
+
+Help popovers share one application-level controller: opening one closes the previous one, an
+outside pointer press closes the active popover, and Escape closes it while restoring focus to its
+trigger. Popovers render in a body portal with fixed positioning, flip above the trigger when needed,
+and clamp width, height, and coordinates to a 12 px viewport margin. This contract is tested at a
+320 × 240 viewport as well as through the application interaction tests.
+
 | Roadmap IDs | Primary UI | Visible coverage |
 | --- | --- | --- |
 | NLP-01–02 | Граф диалога | Source replies, all ranked candidates, proposal eligibility/reasons, discourse relations, review controls, run tasks, reference-set state and frozen evaluation metrics |

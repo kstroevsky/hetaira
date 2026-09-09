@@ -3,6 +3,7 @@ import { GitMerge, Play } from 'lucide-react'
 
 import { createReasoningRun, fetchReasoningGraph } from '../api/client'
 import { ArtifactDetails } from './ArtifactDetails'
+import { MethodTip } from './MethodTip'
 
 export function ReasoningGraphWorkbench({ corpusId }: { corpusId: string }) {
   const client = useQueryClient()
@@ -37,6 +38,10 @@ export function ReasoningGraphWorkbench({ corpusId }: { corpusId: string }) {
         <strong>NLI: {nliTask?.status ?? '—'}</strong>
       </header>
       <section>
+        <header className="reasoning-section-heading">
+          <h2 className="method-heading">Предложенные аргументные связи <MethodTip tip="argumentRelations" /></h2>
+          <span>{graph.data.relations.length}</span>
+        </header>
         {graph.data.relations.map((relation) => (
           <article key={relation.id}>
             <div><small>ИСТОЧНИК</small><p>{propositions.get(relation.source_proposition_id)?.text}</p></div>
@@ -52,20 +57,20 @@ export function ReasoningGraphWorkbench({ corpusId }: { corpusId: string }) {
       </section>
       <section className="reasoning-diagnostics">
         <article>
-          <h2>Компоненты аргумента</h2>
+          <h2 className="method-heading">Компоненты аргумента <MethodTip tip="argumentComponents" /></h2>
           {graph.data.argument_components.map((item) => <div key={item.id}>
             <strong>{item.component_type}</strong><span>{propositions.get(item.proposition_id)?.text}</span>
           </div>)}
         </article>
         <article>
-          <h2>Abstained relation candidates</h2>
+          <h2 className="method-heading">Abstained relation candidates <MethodTip tip="argumentCandidates" /></h2>
           {graph.data.relation_candidates.filter((item) => !item.proposal_eligible).map((item) => <div key={item.id}>
             <strong>{item.eligibility_reasons.join(' · ')}</strong>
             <span>{propositions.get(item.source_proposition_id)?.text} → {propositions.get(item.target_proposition_id)?.text}</span>
           </div>)}
         </article>
         <article>
-          <h2>NLI challenger</h2>
+          <h2 className="method-heading">NLI challenger <MethodTip tip="nli" /></h2>
           {graph.data.nli_challengers.length ? graph.data.nli_challengers.map((item) => <div key={item.id}>
             <strong>{item.label} · truth {item.truth_status}</strong><span>{JSON.stringify(item.scores)}</span>
           </div>) : <p>NLI unavailable; no challenger outputs were fabricated.</p>}

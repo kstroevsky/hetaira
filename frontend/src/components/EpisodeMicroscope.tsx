@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 
 import { fetchEpisodeMicroscope } from '../api/client'
+import { MethodTip } from './MethodTip'
 
 type EpisodeMicroscopeProps = {
   corpusId: string
@@ -50,7 +51,7 @@ export function EpisodeMicroscope({
       <header>
         <div>
           <span>DEEP SLICE · PROVISIONAL RULES</span>
-          <h3>Пропозиции, позиции и grounding в контекстном окне</h3>
+          <h3 className="method-heading">Пропозиции, позиции и grounding в контекстном окне <MethodTip tip="episodeWindow" /></h3>
         </div>
         <button type="button" onClick={onClose} aria-label="Закрыть микроскоп эпизода"><X /></button>
       </header>
@@ -69,7 +70,7 @@ export function EpisodeMicroscope({
           </div>
           <div className="episode-columns">
             <section className="episode-timeline">
-              <h4>Контекст · {microscope.window.episode_title}</h4>
+              <h4 className="method-heading">Контекст · {microscope.window.episode_title} <MethodTip tip="episodeWindow" /></h4>
               <div>
                 {microscope.messages.map((message) => (
                   <article
@@ -90,7 +91,7 @@ export function EpisodeMicroscope({
             </section>
 
             <section className="episode-propositions">
-              <h4>Извлечённые пропозиции</h4>
+              <h4 className="method-heading">Извлечённые пропозиции <MethodTip tip="propositions" /></h4>
               <div>
                 {microscope.propositions.map((proposition) => (
                   <article key={proposition.proposition_id}>
@@ -104,7 +105,7 @@ export function EpisodeMicroscope({
             </section>
 
             <section className="episode-relations">
-              <h4>Структура согласия</h4>
+              <h4 className="method-heading">Структура согласия <MethodTip tip="stanceGrounding" /></h4>
               <div className="stance-list">
                 {microscope.stance_edges.map((edge, index) => (
                   <article className={edge.position.toLocaleLowerCase()} key={`${edge.source_message_id}-${index}`}>
@@ -115,7 +116,7 @@ export function EpisodeMicroscope({
                 ))}
                 {!microscope.stance_edges.length ? <p>Явные stance-переходы не обнаружены.</p> : null}
               </div>
-              <h4>Grounding / repair</h4>
+              <h4 className="method-heading">Grounding / repair <MethodTip tip="stanceGrounding" /></h4>
               <div className="grounding-list">
                 {microscope.grounding_events.map((event, index) => (
                   <button

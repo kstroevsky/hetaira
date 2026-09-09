@@ -3,6 +3,7 @@ import { Activity, Play } from 'lucide-react'
 
 import { buildInteractionDynamics, fetchInteractionDynamics } from '../api/client'
 import { ArtifactDetails } from './ArtifactDetails'
+import { MethodTip } from './MethodTip'
 
 export function InteractionDynamicsWorkbench({ corpusId }: { corpusId: string }) {
   const client = useQueryClient()
@@ -33,7 +34,7 @@ export function InteractionDynamicsWorkbench({ corpusId }: { corpusId: string })
       <header><span>DESCRIPTIVE / ASSOCIATIONAL</span><h1>Координация, survival и relational events</h1><p>{data.guardrail}</p></header>
       <section className="interaction-grid">
         <article>
-          <h2>Направленная языковая координация</h2>
+          <h2 className="method-heading">Направленная языковая координация <MethodTip tip="coordination" /></h2>
           <small>n={coordination.sample_size} / {coordination.denominator} explicit reply events</small>
           {coordination.estimate.map((item) => <div key={`${item.initiator_id}:${item.responder_id}`}>
             <strong>{item.initiator_id.slice(0, 6)} → {item.responder_id.slice(0, 6)}</strong>
@@ -41,20 +42,20 @@ export function InteractionDynamicsWorkbench({ corpusId }: { corpusId: string })
           </div>)}
         </article>
         <article>
-          <h2>Response survival</h2>
+          <h2 className="method-heading">Response survival <MethodTip tip="survival" /></h2>
           <small>{survival.numerator} replies / {survival.denominator} messages · median {survival.estimate.median_minutes ?? '—'} min</small>
           {survival.estimate.survival_curve.slice(0, 12).map((point) => <div key={point.minutes}>
             <strong>{point.minutes.toFixed(1)} min</strong><span>S(t) {point.survival.toFixed(3)} · risk {point.at_risk} · censored {point.censored}</span>
           </div>)}
         </article>
         <article>
-          <h2>Relational-event receiver choice</h2>
+          <h2 className="method-heading">Relational-event receiver choice <MethodTip tip="relationalEvents" /></h2>
           <small>{relational.causal_status} · risk sets {relational.sample_size} / events {relational.denominator}</small>
           {Object.entries(relational.estimate.relative_choice_odds ?? {}).map(([name, value]) => <div key={name}><strong>{name}</strong><span>relative odds {value.toFixed(3)}</span></div>)}
           {'reason' in relational.uncertainty ? <p>{String(relational.uncertainty.reason)}</p> : null}
         </article>
         <article>
-          <h2>Controls and missingness</h2>
+          <h2 className="method-heading">Controls and missingness <MethodTip tip="controlsMissingness" /></h2>
           <dl><dt>Coordination</dt><dd>{coordination.controls.join(' · ')}</dd><dt>Survival</dt><dd>{survival.controls.join(' · ')}</dd><dt>REM</dt><dd>{relational.controls.join(' · ')}</dd></dl>
         </article>
       </section>

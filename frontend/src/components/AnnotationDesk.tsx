@@ -8,6 +8,7 @@ import type {
   JudgmentAnnotationDraft,
 } from '../api/types'
 import { ValidationCockpit } from './ValidationCockpit'
+import { MethodTip } from './MethodTip'
 
 const kinds = [
   ['dialogue_act', 'Диалоговый акт'],
@@ -82,7 +83,7 @@ function DeskToolbar(props: AnnotationDeskProps) {
   return (
     <header className="annotation-toolbar">
       <div>
-        <span>Набор разметки</span>
+        <span className="method-heading">Набор разметки <MethodTip tip="annotationProtocol" /></span>
         <select value={props.activeSetId} onChange={(event) => props.onSetChange(event.target.value)}>
           {props.sets.map((item) => (
             <option key={item.id} value={item.id}>{item.name} · {item.status}</option>

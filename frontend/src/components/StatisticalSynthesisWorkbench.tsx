@@ -3,6 +3,7 @@ import { Calculator, Play } from 'lucide-react'
 
 import { buildStatisticalSynthesis, fetchStatisticalSynthesis } from '../api/client'
 import { ArtifactDetails } from './ArtifactDetails'
+import { MethodTip } from './MethodTip'
 
 export function StatisticalSynthesisWorkbench({ corpusId }: { corpusId: string }) {
   const client = useQueryClient()
@@ -14,13 +15,13 @@ export function StatisticalSynthesisWorkbench({ corpusId }: { corpusId: string }
   return <main className="statistics-workbench" aria-label="Статистический синтез">
     <header><span>PROVISIONAL · ASSOCIATIONAL</span><h1>Null-модели и иерархическая статистика</h1><p>{data.guardrail}</p></header>
     <section className="statistics-grid">
-      <article><h2>Перестановочные проверки диад</h2><small>{data.null_models.null ?? data.null_models.reason}</small>
+      <article><h2 className="method-heading">Перестановочные проверки диад <MethodTip tip="permutationTests" /></h2><small>{data.null_models.null ?? data.null_models.reason}</small>
         {data.null_models.tests?.slice(0, 12).map((item) => <div key={`${item.source_id}:${item.target_id}`}><strong>{item.source_id.slice(0, 6)} → {item.target_id.slice(0, 6)}</strong><span>z {item.z_score?.toFixed(2) ?? '—'} · p {item.one_sided_p.toFixed(3)}</span></div>)}</article>
-      <article><h2>Иерархическая reply-модель</h2><small>{data.hierarchical_reply_model.status} · n={data.hierarchical_reply_model.sample_size ?? '—'}</small>
+      <article><h2 className="method-heading">Иерархическая reply-модель <MethodTip tip="hierarchicalModel" /></h2><small>{data.hierarchical_reply_model.status} · n={data.hierarchical_reply_model.sample_size ?? '—'}</small>
         {Object.entries(data.hierarchical_reply_model.fixed_effects ?? {}).map(([name, value]) => <div key={name}><strong>{name}</strong><span>OR {value.odds_ratio.toFixed(3)}</span></div>)}
         {data.hierarchical_reply_model.reason ? <p>{data.hierarchical_reply_model.reason}</p> : null}</article>
-      <article><h2>Participant random intercepts</h2>{Object.entries(data.hierarchical_reply_model.participant_random_intercepts ?? {}).map(([id, value]) => <div key={id}><strong>{id.slice(0, 8)}</strong><span>{value.toFixed(3)}</span></div>)}</article>
-      <article><h2>Conversation random intercepts</h2>{Object.entries(data.hierarchical_reply_model.conversation_random_intercepts ?? {}).map(([id, value]) => <div key={id}><strong>{id.slice(0, 8)}</strong><span>{value.toFixed(3)}</span></div>)}
+      <article><h2 className="method-heading">Participant random intercepts <MethodTip tip="randomIntercepts" /></h2>{Object.entries(data.hierarchical_reply_model.participant_random_intercepts ?? {}).map(([id, value]) => <div key={id}><strong>{id.slice(0, 8)}</strong><span>{value.toFixed(3)}</span></div>)}</article>
+      <article><h2 className="method-heading">Conversation random intercepts <MethodTip tip="randomIntercepts" /></h2>{Object.entries(data.hierarchical_reply_model.conversation_random_intercepts ?? {}).map(([id, value]) => <div key={id}><strong>{id.slice(0, 8)}</strong><span>{value.toFixed(3)}</span></div>)}
         <p>{data.hierarchical_reply_model.controls?.join(' · ')}</p></article>
     </section>
     <ArtifactDetails value={data} />

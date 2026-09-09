@@ -1,6 +1,8 @@
 import { ShieldCheck } from 'lucide-react'
 
 import type { AnnotationSetStatistics } from '../api/types'
+import { MethodTip } from './MethodTip'
+import { MetricTip } from './MetricTip'
 
 type ValidationCockpitProps = {
   setName: string | undefined
@@ -32,19 +34,20 @@ export function ValidationCockpit({ setName, statistics }: ValidationCockpitProp
   return (
     <section className="validation-cockpit" aria-label="Контроль научной валидации">
       <header>
-        <div><ShieldCheck /><span>VALIDATION GATE</span><strong>{setName}</strong></div>
+        <div><ShieldCheck /><span>VALIDATION GATE</span><MethodTip tip="validationGate" /><strong>{setName}</strong></div>
         <i className={statistics?.freeze_ready ? 'ready' : ''}>
           {statistics?.freeze_ready ? 'готов к заморозке' : 'сбор gold продолжается'}
         </i>
       </header>
       <div>
-        <ValidationMetric label="Train / dev / test" value={splitValue} />
-        <ValidationMetric label="Подтверждённые единицы" value={confirmedValue} />
-        <ValidationMetric label="Двойная разметка" value={doubleValue} />
-        <ValidationMetric label="Сырые совпадения" value={agreementValue} />
+        <ValidationMetric label="Train / dev / test" value={splitValue} tip="Разделение reference-данных: train используют для настройки, development — для выбора решений, test — только для финальной независимой проверки." />
+        <ValidationMetric label="Подтверждённые единицы" value={confirmedValue} tip="Число единиц, для которых существует итоговое проверенное суждение, относительно всей выборки." />
+        <ValidationMetric label="Двойная разметка" value={doubleValue} tip="Сколько единиц независимо проверили два аннотатора. Независимость нужна, чтобы измерить воспроизводимость кодбука." />
+        <ValidationMetric label="Сырые совпадения" value={agreementValue} tip="Доля одинаковых решений A и B без поправки на случайное совпадение. Показатель читают вместе с типом задачи и числом примеров." />
         <ValidationMetric
           label="Сложные случаи"
           value={statistics ? String(statistics.difficult_units) : '—'}
+          tip="Единицы с расхождением, воздержанием или другой причиной для отдельного разбора при adjudication."
         />
       </div>
       {statistics?.task_completion ? (
@@ -61,6 +64,6 @@ export function ValidationCockpit({ setName, statistics }: ValidationCockpitProp
   )
 }
 
-function ValidationMetric({ label, value }: { label: string; value: string }) {
-  return <div><span>{label}</span><strong>{value}</strong></div>
+function ValidationMetric({ label, value, tip }: { label: string; value: string; tip: string }) {
+  return <div><span className="method-heading">{label}<MetricTip title={label}>{tip}</MetricTip></span><strong>{value}</strong></div>
 }

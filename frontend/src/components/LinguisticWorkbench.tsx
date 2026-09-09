@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { createLinguisticRun, fetchMessageLinguistics } from '../api/client'
 import type { LinguisticAnnotation, MessageItem } from '../api/types'
 import { ArtifactDetails } from './ArtifactDetails'
+import { MethodTip } from './MethodTip'
 
 type LinguisticWorkbenchProps = {
   corpusId: string
@@ -140,7 +141,7 @@ export function LinguisticWorkbench({
           </article>
 
           <section className="linguistic-panel">
-            <header><h2>Токены и морфология</h2><span>pymorphy3 baseline</span></header>
+            <header><h2 className="method-heading">Токены и морфология <MethodTip tip="tokensMorphology" /></h2><span>pymorphy3 baseline</span></header>
             <div className="token-table" role="table" aria-label="Токены и морфология">
               {features?.tokens.map((token) => (
                 <div role="row" key={token.id}>
@@ -156,7 +157,7 @@ export function LinguisticWorkbench({
 
           <div className="linguistic-columns">
             <section className="linguistic-panel">
-              <header><h2>Интерпретируемые признаки</h2></header>
+              <header><h2 className="method-heading">Интерпретируемые признаки <MethodTip tip="interpretableFeatures" /></h2></header>
               <dl>
                 <div><dt>Именные группы</dt><dd>{features?.noun_phrases.length ?? 0}</dd></div>
                 <div><dt>Области отрицания</dt><dd>{features?.negation_scopes.length ?? 0}</dd></div>
@@ -172,7 +173,7 @@ export function LinguisticWorkbench({
               </div>
             </section>
             <section className="linguistic-panel">
-              <header><h2>Упоминания сущностей</h2><span>{mentions.length}</span></header>
+              <header><h2 className="method-heading">Упоминания сущностей <MethodTip tip="entityMentions" /></h2><span>{mentions.length}</span></header>
               <div className="entity-list">
                 {mentions.map((annotation) => {
                   const mention = annotation.value as EntityMention
@@ -188,7 +189,7 @@ export function LinguisticWorkbench({
           </div>
 
           <section className="linguistic-panel">
-            <header><h2>Кандидаты кореференции</h2><span>не калибровано</span></header>
+            <header><h2 className="method-heading">Кандидаты кореференции <MethodTip tip="coreference" /></h2><span>не калибровано</span></header>
             {coreference.length ? coreference.map((annotation) => (
               <article className="coreference-row" key={annotation.id}>
                 <strong>{String(annotation.value.mention_id)}</strong>
@@ -200,7 +201,7 @@ export function LinguisticWorkbench({
 
           {parser ? (
             <section className="linguistic-panel">
-              <header><h2>Локальный dependency / NER / SRL</h2><span>pinned model</span></header>
+              <header><h2 className="method-heading">Локальный dependency / NER / SRL <MethodTip tip="localParser" /></h2><span>pinned model</span></header>
               <pre>{JSON.stringify(parser.value, null, 2)}</pre>
             </section>
           ) : null}

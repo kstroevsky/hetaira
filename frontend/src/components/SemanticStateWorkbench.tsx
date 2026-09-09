@@ -3,6 +3,7 @@ import { Activity, Play } from 'lucide-react'
 
 import { buildSemanticState, fetchSemanticState } from '../api/client'
 import { ArtifactDetails } from './ArtifactDetails'
+import { MethodTip } from './MethodTip'
 
 export function SemanticStateWorkbench({ corpusId }: { corpusId: string }) {
   const client = useQueryClient()
@@ -17,14 +18,14 @@ export function SemanticStateWorkbench({ corpusId }: { corpusId: string }) {
   return <main className="state-workbench" aria-label="Семантика и состояния">
     <header><div><span>PROVISIONAL · MULTI-METHOD</span><h1>Семантика и состояния</h1><p>{data.guardrail}</p></div></header>
     <section className="state-grid">
-      <article><h2>Тематические challengers</h2>{Object.entries(data.topic_challengers.models).map(([name, model]) => <div key={name}><strong>{name.toUpperCase()}</strong><span>{model.status} · {model.topic_count ?? model.reason}</span></div>)}
+      <article><h2 className="method-heading">Тематические challengers <MethodTip tip="topicChallengers" /></h2>{Object.entries(data.topic_challengers.models).map(([name, model]) => <div key={name}><strong>{name.toUpperCase()}</strong><span>{model.status} · {model.topic_count ?? model.reason}</span></div>)}
         <p>ARI: {data.topic_challengers.agreement?.adjusted_rand_index.toFixed(3) ?? '—'} · disagreement = uncertainty</p></article>
-      <article><h2>Семантическое изменение</h2><small>{data.semantic_change.representation ?? data.semantic_change.status}</small>
+      <article><h2 className="method-heading">Семантическое изменение <MethodTip tip="semanticChange" /></h2><small>{data.semantic_change.representation ?? data.semantic_change.status}</small>
         {data.semantic_change.terms.slice(0, 8).map((item) => <div key={item.term}><strong>{item.term}</strong><span>{item.average_pairwise_cosine_distance.toFixed(3)}</span></div>)}</article>
-      <article><h2>Кандидаты точек изменения</h2>{data.change_points.message_activity.map((item) => <div key={item.method}><strong>{item.month}</strong><span>{item.method} · {item.score.toFixed(3)}</span></div>)}</article>
-      <article><h2>Латентные состояния</h2><small>{data.conversation_states.status} · states unlabeled</small>
+      <article><h2 className="method-heading">Кандидаты точек изменения <MethodTip tip="changePoints" /></h2>{data.change_points.message_activity.map((item) => <div key={item.method}><strong>{item.month}</strong><span>{item.method} · {item.score.toFixed(3)}</span></div>)}</article>
+      <article><h2 className="method-heading">Латентные состояния <MethodTip tip="latentStates" /></h2><small>{data.conversation_states.status} · states unlabeled</small>
         {data.conversation_states.sequence?.map((item) => <div key={item.month}><strong>{item.month}</strong><span>{item.state}</span></div>)}</article>
-      <article className="state-wide"><h2>Темы и траектории</h2>
+      <article className="state-wide"><h2 className="method-heading">Темы и траектории <MethodTip tip="topicTrajectories" /></h2>
         {Object.entries(data.topic_challengers.models).flatMap(([method, model]) =>
           (model.topics ?? []).map((topic) => <div key={`${method}:${topic.topic_id}`}>
             <strong>{method.toUpperCase()} #{topic.topic_id} · {topic.terms.join(' · ')}</strong>
@@ -32,7 +33,7 @@ export function SemanticStateWorkbench({ corpusId }: { corpusId: string }) {
           </div>),
         )}
       </article>
-      <article className="state-wide"><h2>HMM diagnostics</h2>
+      <article className="state-wide"><h2 className="method-heading">HMM diagnostics <MethodTip tip="hmmDiagnostics" /></h2>
         <pre>{JSON.stringify({ features: data.conversation_states.features, transition_matrix: data.conversation_states.transition_matrix, state_means_standardized: data.conversation_states.state_means_standardized }, null, 2)}</pre>
       </article>
     </section>

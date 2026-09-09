@@ -1,6 +1,7 @@
 import { ArrowDown, MoreVertical, Reply } from 'lucide-react'
 
 import type { MessageItem } from '../api/types'
+import { MethodTip } from './MethodTip'
 
 type MessageTimelineProps = {
   messages: MessageItem[]
@@ -24,7 +25,7 @@ export function MessageTimeline({ messages, selectedId, onSelect }: MessageTimel
   return (
     <section className="timeline-pane" aria-label="Лента переписки">
       <div className="pane-heading">
-        <h2>Лента переписки</h2>
+        <h2 className="method-heading">Лента переписки <MethodTip tip="messageTimeline" /></h2>
         <div>
           <button className="plain-icon" type="button" aria-label="Порядок сообщений">
             <ArrowDown aria-hidden="true" />

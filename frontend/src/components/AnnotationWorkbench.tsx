@@ -17,6 +17,7 @@ import {
 } from '../api/client'
 import type { JudgmentAnnotationDraft } from '../api/types'
 import { AnnotationDesk } from './AnnotationDesk'
+import { MethodTip } from './MethodTip'
 type AnnotationWorkbenchProps = {
   corpusId: string
 }
@@ -276,7 +277,7 @@ export function AnnotationWorkbench({ corpusId }: AnnotationWorkbenchProps) {
     return (
       <main className="annotation-empty">
         <DatabaseZap aria-hidden="true" />
-        <h1>Русский пилот разметки ещё не создан</h1>
+        <h1 className="method-heading">Русский пилот разметки ещё не создан <MethodTip tip="annotationProtocol" /></h1>
         <p>
           Создайте corpus-specific reference pilot из 80 anchor-сообщений. Эпизоды не
           пересекают train/development/test; 24 единицы получают слепые A/B-суждения.
