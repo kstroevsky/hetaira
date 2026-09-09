@@ -21,6 +21,7 @@ import { ObservatoryOverview } from './components/ObservatoryOverview'
 import { RunStrip } from './components/RunStrip'
 import { Sidebar } from './components/Sidebar'
 import { Topbar } from './components/Topbar'
+import { selectDefaultCorpus } from './corpusSelection'
 
 export default function App() {
   return <TooltipProvider><AppWorkspace /></TooltipProvider>
@@ -35,8 +36,7 @@ function AppWorkspace() {
   const [importOpen, setImportOpen] = useState(false)
 
   const corporaQuery = useQuery({ queryKey: ['corpora'], queryFn: fetchCorpora })
-  const defaultCorpus =
-    corporaQuery.data?.find((corpus) => corpus.language === 'ru') ?? corporaQuery.data?.[0]
+  const defaultCorpus = selectDefaultCorpus(corporaQuery.data)
   const corpusId = requestedCorpusId || defaultCorpus?.id || ''
   const workspaceQuery = useQuery({
     queryKey: ['workspace', corpusId],

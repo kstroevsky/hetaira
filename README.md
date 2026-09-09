@@ -34,6 +34,18 @@ make frontend
 
 Open [http://localhost:5173](http://localhost:5173). API documentation is at [http://localhost:8000/docs](http://localhost:8000/docs).
 
+Private Telegram archives are never bundled or ingested implicitly. Import a local HTML export with:
+
+```bash
+.venv/bin/python scripts/import_telegram_html.py \
+  "/path/to/ChatExport_Psychedelic Renaissance 2.0" \
+  --object-root backend/data/objects
+```
+
+The importer defaults to the corpus name **Psychedelic Renaissance 2.0**. Once present, the
+frontend selects that corpus before synthetic demos; otherwise it prefers another validated
+Telegram HTML corpus, then the Russian demo.
+
 The **Граф диалога** workspace builds message-level `RESPONDS_TO` candidates and
 discourse-relation proposals without changing source-native `REPLIES_TO` edges. Similarity
 scores are rankings, not probabilities. Configure an optional local embedding endpoint in

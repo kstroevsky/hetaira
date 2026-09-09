@@ -27,7 +27,9 @@ def import_export(directory: Path, corpus_name: str, object_root: Path) -> dict:
                 is_validated_language=True,
             )
             session.add(corpus)
-            session.commit()
+            # Assign the corpus ID without persisting an empty corpus if setup fails
+            # before ImportService creates its resumable import run.
+            session.flush()
         result = ImportService(session).import_object(
             corpus,
             stored,
